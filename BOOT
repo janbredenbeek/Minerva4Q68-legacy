@@ -1,0 +1,14 @@
+100 PAPER#2,2:INK#2,7:CLS#2
+110 TK2_EXT
+120 DATA_USE win1_:PROG_USE ccc1_
+124 REMark LRESPR ccc1_env_bin
+125 REMark LRESPR ccc1_sigext_rext
+126 REMark setenv "TERM=qdos"
+130 DDOWN m
+140 EW make
+150 KILL_UQLX
+2000 DEFine PROCedure sa: SAVE_O win1_BOOT
+2060 DEFine PROCedure prtt
+2070 OPEN#6,"prt_-f!xterm -e tail  /var/log/chrony/rtc.log"
+2075 CLOSE#6
+2080 END DEFine

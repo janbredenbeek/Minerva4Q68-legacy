@@ -1,0 +1,24 @@
+
+  GENIF q68 <> 0
+
+** hw specific for the q68
+
+Q68_LED		equ	 $1C000
+**;;KEY_CODE 	equ	 $1C002
+KEY_CODE	equ	 $1C140
+**;;KEY_UNLOCK 	equ	 $1C003
+KEY_UNLOCK 	equ 	 $1C144
+MOUSE_CODE 	equ	 $1C006
+MOUSE_UNLOCK 	equ	 $1C007
+MOUSE_STATUS	equ	 $1C008
+**;;PS2_STATUS 	equ	 $1C004
+**;;KEY_STATUS 	equ	 $1C004		* PS2_STATUS now renamed to KEY_STATUS
+KEY_STATUS 	equ	 $1C148
+
+UART_TXDATA 	equ	 $1C010
+UART_RXDATA 	equ	 $1C012
+UART_STATUS 	equ	 $1C014
+UART_PRESCALE   equ	 $1C016
+
+  ENDGEN
+

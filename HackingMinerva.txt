@@ -1,0 +1,19 @@
+Base of ROM == 0
+  ss/base_asm
+   ->ss_ramt
+     check for $5c magic in A5, set ramtop from d1 if set
+     draw logo
+     -> ss_init
+  ss/init_asm
+     chek for 68020
+     init HW regs
+     init csysvars,jobtable,chantable
+     init keyboard repeat
+     init job0, entry point for basic
+     ->ss_rj0 (reschd)
+     ss/reschd_asm
+        stack etc for job0, start it
+   sb/start_asm
+     sb_start
+        search extra roms
+	F1..F4

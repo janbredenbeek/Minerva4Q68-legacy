@@ -1,2 +1,37 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+*.txt text eol=lf
+*_txt text eol=lf
+*.asm text eol=lf
+*_asm text eol=lf
+*.link text eol=lf
+*_link text eol=lf
+*.in text eol=lf
+*_in text eol=lf
+*.inc text eol=lf
+*_inc text eol=lf
+*.bas text eol=lf
+*_bas text eol=lf
+*.c text eol=lf
+*_c text eol=lf
+*.bin binary
+*.rom binary
+*.rel binary
+*.dv3 binary
+*.SYS binary
+
+# Custom for Visual Studio
+*.cs     diff=csharp
+
+# Standard to msysgit
+*.doc	 diff=astextplain
+*.DOC	 diff=astextplain
+*.docx diff=astextplain
+*.DOCX diff=astextplain
+*.dot  diff=astextplain
+*.DOT  diff=astextplain
+*.pdf  diff=astextplain
+*.PDF	 diff=astextplain
+*.rtf	 diff=astextplain
+*.RTF	 diff=astextplain

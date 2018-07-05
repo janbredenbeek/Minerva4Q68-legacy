@@ -1,0 +1,43 @@
+SYSROM = mgg.rom
+
+#ROMIM = tk2_ext,0xc000
+#ROMIM = T6M97-94,0xc000
+#ROMIM = T6M89-94,0xc000
+
+SER2=/dev/ttyS2
+
+ROMDIR = /home/rz/.romdir/
+RAMTOP = 4096
+PRINT = cat >/tmp/ptest
+#PRINT = /usr/bin/lpr -Praw
+CPU_HOG = 0
+FAST_START=0
+
+DEVICE = MDV1,/home/rz/.qldir/mdv1/
+DEVICE = MDV2,/home/rz/.qldir/mdv2/,qdos-like
+DEVICE = CCC1,/home/rz/ccx/,qdos-like
+
+#DEVICE = IDE1,~/.qldir/IMG1,ide-emu
+#DEVICE = IDE2,~/.qldir/IMG2,cd-emu
+
+
+#DEVICE = CD1,/home/rz/.qldir/QXL4.WIN,qdos-fs
+
+DEVICE = WIN1,/home/rz/qdos/q68/,qdos-like
+#DEVICE = WIN2,/home/rz/qdos/qubide,qdos-like
+#DEVICE = WIN2,/home/rz/qlhd,qdos-like
+#DEVICE = WIN3,/home/rz/qdos/minerva/extrarom,qdos-like
+
+
+
+#DEVICE = RAM1,/tmp/.ram1-%x,clean
+#DEVICE = RAM2,/tmp/.ram2-%x,clean
+#DEVICE = RAM3,/tmp/.ram3-%x,clean
+
+#DEVICE = RAM8,/tmp/.ram8-%x,clean
+
+XKEY_ALT = Mode_switch
+
+#XVID = 0x21
+#XVIS_CLASS = DirectColor
+#XDEPTH = 8

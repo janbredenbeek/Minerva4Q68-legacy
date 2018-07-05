@@ -1,0 +1,58 @@
+
+
+Quanta  V1.01   GST Computer Systems Limited  22:39 Wednesday 02/05/18  Page   1
+LINK
+
+Command line and control file information
+=========================================
+
+Command line
+============
+
+-WITH link -CRF
+
+
+Control file
+============
+
+input q68hw_rel
+
+
+Object module information
+=========================
+
+INPUT win1_Q68HW_REL
+
+          Q68HW GST 68000 Macro Assembler Quanta V1.06 22:39 02/05/18
+
+
+
+Quanta  V1.01   GST Computer Systems Limited  22:39 Wednesday 02/05/18  Page   2
+LINK
+
+Load map
+========
+
+Type      Start     End       Module/entry                          Section name
+================================================================================
+
+
+SECTION   00000000  000007DE                                           Q68_Q68HW
+
+          00000000  000007DE  Q68HW
+
+
+
+Quanta  V1.01   GST Computer Systems Limited  22:39 Wednesday 02/05/18  Page   3
+LINK
+
+Cross-reference
+===============
+
+Address   Symbol              Section             Module
+========================================================
+
+
+****** TOTAL ERRORS    0 
+**** TOTAL WARNINGS    0 
+

@@ -1,0 +1,44 @@
+* machine type, keyboard layout and user settable compilation settings
+* should go into userdefs
+
+	include 'win1_m_userdefs'
+
+* select HW conf and features
+
+; compile for q68
+q68	equ	1
+
+; old style generic code
+realQL	equ	0
+
+
+ GENIF  q68 <> 0
+Q68_RAMT	equ	16384
+FULL_RAMTEST	equ	0
+QL_NET		equ	1
+QL_MDV		equ	0	* 
+* Q68_HACK was required in some earlier versions of the firmware
+Q68_HACK 	equ	0
+QL_SER		equ	0
+QL_IPC		equ	1	* QL keyboard & IPC - need for uqlx debugging
+QL_IIC		equ 	0
+
+Q68_KEY		equ	0	* PS2 keyboard
+Q68_SKEY 	equ	0	* use serial line as keyboard
+* CPU 0: test it, 1: fixed to 68000
+CPU		equ	0	
+
+SDEBUG equ 	0
+
+ ENDGEN
+
+
+ GENIF realQL <> 0
+for real QL must double check all flags yet
+*QL_NET	equ	1
+*QL_MDV	equ	1
+*QL_SER	equ	1
+*QL_IPC	equ	1
+*QL_IIC	equ 	1
+
+ ENDGEN
