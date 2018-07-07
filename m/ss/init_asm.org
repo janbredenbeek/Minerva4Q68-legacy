@@ -92,13 +92,7 @@ wipesv
    GENIF Q68_HACK <> 1                   ;;;; original Minerva  
         lea     pc_intr,a3
         assert  pc_tctrl,pc_ipcwr-1
-        
-* JB-20180513: split move.w below into two instructions to avoid corruption
-*              of the Q68 real-time clock
-;        move.w  #1,pc_tctrl-pc_intr(a3) set transmit mode and reset link
-
-        clr.b   pc_tctrl-pc_intr(a3)    set transmit mode
-        move.b  #1,pc_ipcwr-pc_intr(a3) reset link
+        move.w  #1,pc_tctrl-pc_intr(a3) set transmit mode and reset link
 s.mctrl equ     1<<pc..writ!1<<pc..sclk init pc_mctrl (why the write bit? lwr)
 s.intr  equ     pc.intre!pc.intrf!pc.intrt!pc.intri!pc.intrg clear interrupts
         assert  pc_mctrl,pc_intr-1
