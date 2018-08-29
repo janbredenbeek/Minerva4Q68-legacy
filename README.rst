@@ -19,13 +19,26 @@ The appropriate ROM image Q68_??ROM.SYS should be renamed to Q68_ROM.SYS and cop
 
 The 96K ROM images contain the Minerva operating system, a keyboard driver specific for US, UK and DE (German) keyboard layouts, and a SDHC card driver. Note that in the current build the MDV driver is still present but disabled since there is no MDV hardware in the Q68.
 
+By default, the devices win1_ and win2_ will be mapped to container files QLWA.WIN on SDHC drives 1 and 2 respectively. If present, the devices qub1_ and qub2_ will be mapped to Qubide container files QL_BDI.BIN on SDHC drives 1 and 2 respectively. This can be changed by configuring the Q68_ROM.SYS file (see below).
+
+
+CONFIGURATION:
+--------------
+
+The devices win1_ to win8_ and qub1_ to qub8_ can be configured to be mapped to any *.WIN (QLWA format) or *.BIN (Qubide format) container file by using the CONFIG or MENUCONFIG program on the Q68_ROM.SYS file. You MUST use a V2 capable version of these programs. Suitable CONFIG programs can be found on http://www.dilwyn.me.uk/config/index.html.
+
+
 Current issues:
+---------------
 
 - The keyboard driver currently does not support auto-repeat and key mappings need to be updated.
 - The maximum amount of RAM supported is limited to 16MB, as the slave block system's structure currently prevents supporting more RAM.
 - The serial port and network port of the Q68 are not supported.
+- Building instructions need to be added (work in progress).
+
 
 Contributors:
+-------------
 
 - Minerva operating system by Laurence Reeves;
 - Keyboard driver: Richard Zidlicky, Jan Bredenbeek
