@@ -118,6 +118,11 @@ q68kbd_init:
 	clr.w	(a0)+		; clear keycodes
 
 	clr.w	sv_arcnt(a6)		; disable key repeat
+; ----------------------------------------------------------------
+; replace the ROM keyboard decode routine in sx_kbenc with our own
+          move.l    sv_chtop(a6),a4
+          lea       KBENC(pc),a0
+          move.l    a0,sx_kbenc(a4)
 ; --------------------------------------------------------------
 ;  link in polled task routine to handle keyboard
 
@@ -741,7 +746,7 @@ RDKEYB2:
 	cmp.w	sv_arbuf(a6),d1
 	beq.s	RDKEYBXL	; ignore HW key repeat, want own
 *	trap	#12
-	bsr.s	q68kbinch
+*	bsr.s	q68kbinch           ; now handled by sx_kbrd vector
 *	trap	#12
 	bra.s	RDKEYBXL
 
@@ -758,6 +763,17 @@ RDKEYBXL:
 RDKEYBX:	
 	movem.l	(a7)+,d0/d1/a3/a4/a6
 	rts
+
+; Our custom sx_kbenc routine
+; NOTE: Unfortunately the calling code from ip.kbrd smashes A3 when calling
+; our routine from the polled list. So we need to save A3 before calling
+; ip.kbrd and pick it up from the stack here.
+
+KBENC:    move.l    4(a7),a3
+
+;         ...rest of code...
+
+          rts
 
 ; key ind d1.w, check for special keys, insert into keyq
 ; unlike Minerva d1 is always word=code:8,ALT:8
