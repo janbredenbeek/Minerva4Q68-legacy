@@ -720,7 +720,7 @@ RDKEYB0:
 	move.l	d0,a2
 	move.l	a3,-(a7)	; save A3 b/c ip.kbrd smashes it!
 	move.w	$150,a0		; ip.kbrd
-	jsr	(a0)
+	jsr	$4000(a0)
 	move.l	(a7)+,a3
 RDKEYB0a:
 	tst.b	VAR.ASCkey(a3)
@@ -771,7 +771,7 @@ RDKEYBXL:
 	
 RDKEYBX:
 	move.w	$152,a3		; ip.kbend
-	jsr	(a3)
+	jsr	$4000(a3)
 	movem.l	(a7)+,d0/d1/a3/a4/a6
 	rts
 
