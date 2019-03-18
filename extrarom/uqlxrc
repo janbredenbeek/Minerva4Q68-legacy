@@ -1,7 +1,7 @@
-SYSROM = js_rom
-SYSROM = mgg.rom
+#SYSROM = js_rom
+#SYSROM = mgg.rom
 #SYSROM = min.189
-#SYSROM = minerva_rom
+SYSROM = minerva_rom
 #SYSROM = JSbugfix_rom 
 #SYSROM = m89i.byt
 
@@ -16,18 +16,18 @@ ROMIM = tk2_ext,0xc000
 
 SER2=/dev/ttyS2
 
-ROMDIR = /home/rz/.romdir/
+ROMDIR = ~/uqlx/romdir
 RAMTOP = 4096
 PRINT = cat >/tmp/ptest
 #PRINT = /usr/bin/lpr -Praw
 CPU_HOG = 0
 FAST_START=0
 
-DEVICE = MDV1,/home/rz/.qldir/mdv1/
-DEVICE = MDV2,/home/rz/.qldir/mdv2/,qdos-like
-DEVICE = CCC1,/home/rz/ccx/,qdos-like
+DEVICE = MDV1,~/mdv1/,qdos-like
+DEVICE = MDV2,~/mdv2/,qdos-like
+DEVICE = CCC1,~/ccx/,qdos-like
 
-DEVICE = WIN1,/home/rz/qdos/q68/extrarom,qdos-like
+DEVICE = WIN1,~/q68/extrarom/,qdos-like
 
 
 
