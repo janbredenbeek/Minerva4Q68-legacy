@@ -700,37 +700,37 @@ RDKEYB:
 
 ; read keyboard
 	moveq	#0,d5		; signal 'no key pressed yet'
-	btst.b	#0,KEY_STATUS
+	btst.b	#0,KEY_STATUS	; key pressed?
 	beq.s	RDKEYBX		; exit - should in fact do key repeat proc
-kbl	move.b	KEY_CODE,d0
-	st	KEY_UNLOCK
+kbl	move.b	KEY_CODE,d0	; get scan code
+	st	KEY_UNLOCK	; signal 'got it'
 		
-	bsr	KEY_decode      ; get scancode
+	bsr	KEY_decode      ; process shift/ctrl/alt/etc
 		
-	tst.b	VAR.ACTkey(a3)
+	tst.b	VAR.ACTkey(a3)	; get active scan code
 	bne.s	RDKEYB0		; branch if alpha-char
 
 	bsr	KR_DOIT		; else keyrow for SHF/CTL/ALT
 	bra.s	RDKEYBXL	; ...and next/exit
 
 RDKEYB0:
-;;	bsr	KEY_conv 	; now called indirectly via ip.kbrd
+;;	bsr	KEY_conv 	; now called indirectly via ip.kbrd!
 	move.l	SV_KEYQ(a6),d0	; current keyboard queue
-	beq.s	RDKEYB0a
-	move.l	d0,a2
+	beq.s	RDKEYB0a	; skip if no queue
+	move.l	d0,a2		; queue address passed in A2
 	move.l	a3,-(a7)	; save A3 b/c ip.kbrd smashes it!
 	move.w	$150,a0		; ip.kbrd
 	jsr	$4000(a0)
-	move.l	(a7)+,a3
+	move.l	(a7)+,a3	; restore A3
 RDKEYB0a:
-	tst.b	VAR.ASCkey(a3)
+	tst.b	VAR.ASCkey(a3)	; get ASCII code (or none)
 	bne.s	RDKEYB1		; branch if valid key-stroke
 
 	bsr	KR_DOIT		; else keyrow for SHF/CTL/ALT
 	bra.s	RDKEYB3
 
 RDKEYB1:
-	tst.b	VAR.RLSflg(a3)
+	tst.b	VAR.RLSflg(a3)	; key released?
 	beq.s	RDKEYB2		; branch if key-down event
 
 	bsr	KR_REMV		; remove key from key-down-list
@@ -739,6 +739,9 @@ RDKEYB1:
 RDKEYB2:
 	bsr	KR_ENTR		; enter key into key-down-list # keyrow???
 	moveq	#1<<4,d5	; signal 'last key still held down'
+
+;; following code replaced by ip.kbrd call!
+
 ;;	clr.w	sv_arcnt(a6)		; disable key repeat
 * this is the polled int	
 ;;	tst.b	VAR.ALTflg(a3)	; if part of ALT combination
@@ -756,9 +759,10 @@ RDKEYB2:
 ;;	trap	#12
 ;;	bsr.s	q68kbinch           ; now handled by sx_kbrd vector
 ;;	trap	#12
-	bra.s	RDKEYBXL
 
-RDKEYB3:
+	bra.s	RDKEYBXL	; finish up
+
+RDKEYB3:			; no keys down (anymore)
 	clr.b	VAR.RLSflg(a3)	; clear the release flag
 	clr.b	VAR.ASCkey(a3)	; clear the ASCII keycode
 ;RDKEYB4:			unused label
@@ -767,13 +771,15 @@ RDKEYB3:
 
 RDKEYBXL:
 	btst.b	#0,KEY_STATUS	;  more chars to read?
-	bne.s	kbl
+	bne.s	kbl		; (can happen?)
 	
 RDKEYBX:
 	move.w	$152,a3		; ip.kbend
 	jsr	$4000(a3)
 	movem.l	(a7)+,d0/d1/a3/a4/a6
 	rts
+
+;; JB: following code is redundant and now handled by ip.kbrd
 
 ; key ind d1.w, check for special keys, insert into keyq
 ; unlike Minerva d1 is always word=code:8,ALT:8
@@ -872,7 +878,7 @@ KEY_conv:
 	beq.s	KEY_convN	; exit if not alpha key
 ;; JB: should never occur, already tested by calling code
 	cmpi.l	#KTB_OFFS_CT,d0
-	bcs.s	KEY_convN	; exit if out-of-bounds
+	bcc.s	KEY_convN	; exit if out-of-bounds
 
 	tst.b	VAR.RLSflg(a3)
 	bne.s	KEY_conv0	; skip if a key-up event
