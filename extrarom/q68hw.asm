@@ -1,6 +1,7 @@
 * q68 hardware drivers
 	section q68_q68hw
 
+DEBUG	equ	1
 
 q68     equ     1
 
@@ -14,7 +15,7 @@ q68     equ     1
         include q68
         
 BOOTDEV equ     0      
-        
+
 romh:		
 	dc.w	$4afb,0001
 	dc.l	q68kbd_init-romh
@@ -80,13 +81,15 @@ vdwak	equ	VAR.KEYdwa-VAR.KEYdwk
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;  start of ROM code
 
+initreg	reg	a0/a3
+
 q68kbd_init:
 
-	movem.l	d0-d3/d6-d7/a0-a4/a6,-(a7)
+	movem.l	initreg,-(a7)
 
 ;* driver memory
 	moveq	#0,d2		; owner is superBASIC
-        move.l  d2,$28048       ; crude method to remove mdv
+;        move.l  d2,$28048       ; crude method to remove mdv
 ;* VAR.LEN should be enough	
 	move.l	#18+VAR.LEN,d1  ; length
 	moveq	#$18,d0		;  MT.ALCHP
@@ -96,6 +99,18 @@ q68kbd_init:
 	bne.s	ROM_EXIT 	; exit if error
 
 	move.l	a0,a3
+
+;; save pointer to linkage block in sys_klnk so sx.kbenc can
+;; pick it up
+
+	moveq	#0,d0
+	trap	#1
+	cmpi.l	#'1.60',d2	; check QDOS version
+	blo.s	initerr		; must be Minerva
+	cmpi.l	#'2.00',d2	; not SMSQ/E...
+	bhs.s	initerr
+	move.l	a3,sys_klnk(a0)
+
 ; --------------------------------------------------------------
 ;  set ASCII table and clear actual key.
 
@@ -119,10 +134,23 @@ q68kbd_init:
 
 	clr.w	sv_arcnt(a6)		; disable key repeat
 ; ----------------------------------------------------------------
+; disable the Minerva polled task for reading the IPC, since there
+; is no IPC in the Q68
+
+	GENIF	DEBUG = 0
+
+	move.l	sv_chtop(a6),a4	; base of extended variables
+	lea	ip_poll(a4),a0	; link to polled task
+	moveq	#$1d,d0		; MT.RPOLL
+	trap	#1
+
 ; replace the ROM keyboard decode routine in sx_kbenc with our own
-	move.l	sv_chtop(a6),a4
+
 	lea	KEY_conv(pc),a0
 	move.l	a0,sx_kbenc(a4)
+
+	ENDGEN
+
 ; --------------------------------------------------------------
 ;  link in polled task routine to handle keyboard
 
@@ -131,13 +159,26 @@ q68kbd_init:
 	move.l	a1,4(a0) 	; address of polled task
 	moveq	#$1c,d0		;  MT.LPOLL
 	trap	#1
+	bra.s	ROM_EXIT
+
   GENIF BOOTDEV <> 0
 	bsr.s	boot_init
+	bra.s	ROM_EXIT
   ENDGEN
-	
+
+initerr	suba.l	a0,a0
+	lea	inerrms,a1
+	move.w	$d0,a2
+	jsr	(a2)		; print error message
+
 ROM_EXIT:
-	movem.l	(a7)+,d0-d3/d6-d7/a0-a4/a6
+	movem.l	(a7)+,initreg
 	rts
+
+inerrms	dc.w	inermse-inerrms-2
+	dc.b	'Incompatible QDOS Version!',10
+inermse	equ	*
+	ds.w	0
 
 *****************************************************	
 * BOOT driver for debugging purposes *
@@ -703,8 +744,11 @@ RDKEYB:
 	btst.b	#0,KEY_STATUS	; key pressed?
 	beq.s	RDKEYBX		; exit - should in fact do key repeat proc
 kbl	move.b	KEY_CODE,d0	; get scan code
+
+	GENIF	DEBUG = 0
 	st	KEY_UNLOCK	; signal 'got it'
-		
+	ENDGEN		
+
 	bsr	KEY_decode      ; process shift/ctrl/alt/etc
 		
 	tst.b	VAR.ACTkey(a3)	; get active scan code
@@ -714,10 +758,24 @@ kbl	move.b	KEY_CODE,d0	; get scan code
 	bra.s	RDKEYBXL	; ...and next/exit
 
 RDKEYB0:
-;;	bsr	KEY_conv 	; now called indirectly via ip.kbrd!
 	move.l	SV_KEYQ(a6),d0	; current keyboard queue
 	beq.s	RDKEYB0a	; skip if no queue
 	move.l	d0,a2		; queue address passed in A2
+
+	GENIF	DEBUG <> 0
+
+	bsr	KEY_conv 	; now called indirectly via ip.kbrd!
+	bra.s	RKDSPEC
+	bra.s	RKDNORM
+	clr.b	sys_klnk+4(a6)
+	bra.s	RDKEYBX
+RKDNORM	move.b	#1,sys_klnk+4(a6)
+	bra.s	RDKEYBX
+RKDSPEC	move.b	#2,sys_klnk+4(a6)
+	bra.s	RDKEYBX
+
+	ENDGEN
+
 	move.l	a3,-(a7)	; save A3 b/c ip.kbrd smashes it!
 	move.w	$150,a0		; ip.kbrd
 	jsr	$4000(a0)
@@ -866,10 +924,10 @@ isprog
 KEY_conv:
 ;;	movem.l	d0/a0,-(a7)	; redundant
 
-;; JB: We have to pick up the linkage pointer from the stack since sx.kbrd
+;; JB: We have to pick up the linkage pointer from sys_klnk since sx.kbrd
 ;; smashes it before calling our routine :(
 
-	move.l	4(a7),a3	
+	move.l	sys_klnk(a6),a3	
 
 	clr.b	VAR.ASCkey(a3)	; clear the ASCII keycode
 

@@ -27,7 +27,7 @@ sx_basic equ $44  W+B*4 returned by VER$, VER$(0)
 *spare   equ $4A  W*3 reserved
 
 * Initial RAM based linkages
-*        equ $50  L*2 00000000 IP_POLL
+ip_poll  equ $50  L*2 00000000 IP_POLL
 *        equ $58  L*6 BASE+$60 SD_SCHED BASE+$68 IP_SCHED 00000000 IO_SCAN
 *        equ $70  L*4 BASE+$80 OD_SERIO OD_SEROP OD_SERCL
 *        equ $80  L*4 BASE+$90 IO_SERQ  OD_PIPOP OD_PIPCL
