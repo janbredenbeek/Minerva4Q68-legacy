@@ -932,6 +932,7 @@ KEY_conv:
 	clr.b	VAR.ASCkey(a3)	; clear the ASCII keycode
 
 	moveq	#0,d0
+	moveq	#0,d1		; initialise result
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
 	beq.s	KEY_convN	; exit if not alpha key
 ;; JB: should never occur, already tested by calling code
@@ -945,7 +946,7 @@ KEY_conv:
 
 	tst.b	VAR.CTLflg(a3)	; CTRL?
 	beq.s	key_conv0	; no, skip this section
-	moveq	#0,d1		; set up 'special' return code
+;;	moveq	#0,d1		; set up 'special' return code
 	tst.b	VAR.ALTflg(a3)	; ALT?
 	beq.s	KC_noalt
 	bset	#0,d1		; bit 0 = CTRL/ALT set
@@ -1011,9 +1012,9 @@ KEY_conv0:
 	move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
 	lea	KTB_OFFS_GR(a0),a0 ; adjust for ALT-Gr chars
 
-	moveq	#0,d0
+;;	moveq	#0,d0		; redundant
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
-	move.b	0(a0,d0.w),d0	; convert to ASCII value
+	move.b	0(a0,d0.w),d1	; convert to ASCII value
 	bne.s	KEY_conv6	; branch if an OK char
 
 	clr.b	VAR.GFXflg(a3)
@@ -1037,7 +1038,7 @@ KEY_conv2:
 	bra.s	KEY_conv8
 
 KEY_conv2a:
-	moveq	#0,d0
+;;	moveq	#0,d0		; redundant
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
 	lea	KTB_OFFS_SH(a0),a0 ; pre-adjust for shifted chars
 	move.b	0(a0,d0.w),d0	; convert to ASCII value
@@ -1067,7 +1068,7 @@ KEY_conv4:
 	suba.l	#KTB_OFFS_SH,a0	; unadjust for shifted chars
 
 KEY_conv5:
-	moveq	#0,d1
+;;	moveq	#0,d1		; redundant
 	move.b	VAR.ACTkey(a3),d1 ; get keycode key
 	move.b	0(a0,d1.w),d1	; convert to ASCII value
 
@@ -1086,10 +1087,10 @@ KEY_conv6:
 
 KEY_conv7:
 	cmp.b	#128,d1		; check lower case accented
-	blt.s	KEY_conv8
+	blt.s	KEY_conv8	;; should be BLO/BCS???
 
 	cmp.b	#139,d1
-	bgt.s	KEY_conv8
+	bgt.s	KEY_conv8	;; should be BHI???
 
 	add.b	#32,d1		; change to upper case
 
