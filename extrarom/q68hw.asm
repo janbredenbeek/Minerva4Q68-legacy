@@ -8,6 +8,10 @@
 ; 
 ; Changelog:
 ;
+; 20190407 JB:
+;
+;   MDV driver now cleanly unlinked
+;
 ; 20190405 JB:
 ;   Removed code under q68kbinch as this can be handled now by Minerva vectors
 ;   $150 and $152, including all the functionality like key repeat, ctrl-c etc.
@@ -19,6 +23,8 @@
 ;   Set symbol q68_keyc to 1 for US, 44 for UK and 49 for DE
 
 	section q68_q68hw
+
+version	setstr	1.1
 
 DEBUG	equ	0		; set to 1 to display variables and result code
 
@@ -33,15 +39,21 @@ q68	equ	1
         include sx.inc
         include q68
 
+string$	macro	a
+	noexpand
+[.lab]	dc.w	.e.[.l]-*-2
+	dc.b	[a]
+.e.[.l]	equ	*
+	ds.w	0
+	endm
+
 BOOTDEV equ     0
 
 romh:
 	dc.l	$4afb0001       ; ROM marker
 	dc.w	0		; no procs to declare
 	dc.w	q68kbd_init-romh
-	dc.w	18
-	dc.b    'Q68 extension ROM',10
-
+	string$	{'Q68 extension ROM v[version]',10}
 
 ****** q68 PS2 keyboard interface ********
 
@@ -115,14 +127,14 @@ q68kbd_init:
 
 ;* driver memory
 	moveq	#0,d2		; owner is superBASIC
-;        move.l  d2,$28048       ; crude method to remove mdv
+
 ;* VAR.LEN should be enough
 	move.l	#18+VAR.LEN,d1  ; length
 	moveq	#$18,d0		;  MT.ALCHP
 	trap	#1		; allocate space
 
 	tst.l	d0
-	bne.s	ROM_EXIT 	; exit if error
+	bne	ROM_EXIT 	; exit if error
 	move.l	a0,a3           ; base of linkage block
 	moveq	#0,d0
 	trap	#1
@@ -131,6 +143,9 @@ q68kbd_init:
 	cmpi.l	#'2.00',d2	; not SMSQ/E...
 	bhs.s	initerr
 	move.l	sv_chtop(a0),a4	; base of extended sysvars
+	lea	$b0(a4),a0	; linkage block of MDV driver
+	moveq	#$23,d0		; MT.RDD
+	trap	#1		; unlink MDV driver
 
 ; --------------------------------------------------------------
 ;  set ASCII table and clear actual key.
@@ -197,9 +212,8 @@ ROM_EXIT:
 	movem.l	(a7)+,initreg
 	rts
 
-inerrms	dc.w	inermse-inerrms-2
-	dc.b	'Incompatible QDOS Version!',10
-inermse	equ	*
+inerrms	string$	{'Incompatible QDOS Version!',10}
+
 	ds.w	0
 
 *****************************************************
@@ -1121,20 +1135,20 @@ KEY_conv6:
 	beq.s	KEY_conv8
 
 	cmp.b	#'a',d1		; check for lower case
-	blt.s	KEY_conv7
+	blo.s	KEY_conv7
 
 	cmp.b	#'z',d1
-	bgt.s	KEY_conv7
+	bhi.s	KEY_conv7
 
 	sub.b	#32,d1		; change to upper case
 	bra.s	KEY_conv8
 
 KEY_conv7:
 	cmp.b	#128,d1		; check lower case accented
-	blt.s	KEY_conv8	;; should be BLO/BCS???
+	blo.s	KEY_conv8	;; should be BLO/BCS???
 
 	cmp.b	#139,d1
-	bgt.s	KEY_conv8	;; should be BHI???
+	bhi.s	KEY_conv8	;; should be BHI???
 
 	add.b	#32,d1		; change to upper case
 
