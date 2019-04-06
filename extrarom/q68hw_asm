@@ -1,0 +1,4 @@
+; The real code is now in q68hw.asm.
+; This file is only there because QMAC expects an _asm extension...
+
+	include	q68hw.asm
