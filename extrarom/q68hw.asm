@@ -1,22 +1,59 @@
-* q68 hardware drivers
+; ************************************
+; q68 hardware drivers for Minerva ROM
+; ************************************
+; Based on Q40/Q60/Q68 code by Richard Zidlicky
+;
+; Modifications for Q68 by Jan Bredenbeek
+; Use and distribution governed by GNU Public License v3
+; 
+; Changelog:
+;
+; 20190407 JB:
+;
+;   MDV driver now cleanly unlinked
+;
+; 20190405 JB:
+;   Removed code under q68kbinch as this can be handled now by Minerva vectors
+;   $150 and $152, including all the functionality like key repeat, ctrl-c etc.
+;   Added IPC KEYROW emulation by using sx_ipcom front-end link in Minerva
+;   Cleaned up rest of code as well.
+;
+; 20180427 JB:
+;   Included tables for UK and US keyboard layouts
+;   Set symbol q68_keyc to 1 for US, 44 for UK and 49 for DE
+
 	section q68_q68hw
 
+version	setstr	1.1
 
-q68     equ     1
-q68_keyc equ	1		; keyboard layout code (1 = US, 44 = UK, 49 = DE)	
-        
+DEBUG	equ	0		; set to 1 to display variables and result code
+
+q68	equ	1
+
+
+;*  q68_keyc equ	1		; keyboard layout code (1 = US, 44 = UK, 49 = DE) 
+;*  should go into userdefs
+
+        include userdefs
         include sv.inc
         include sx.inc
         include q68
-        
-BOOTDEV equ     0      
-        
-romh:		
-	dc.w	$4afb,0001
-	dc.l	q68kbd_init-romh
-	dc.w	18
-	dc.b    'Q68 extension ROM',10
-	
+
+string$	macro	a
+	noexpand
+[.lab]	dc.w	.e.[.l]-*-2
+	dc.b	[a]
+.e.[.l]	equ	*
+	ds.w	0
+	endm
+
+BOOTDEV equ     0
+
+romh:
+	dc.l	$4afb0001       ; ROM marker
+	dc.w	0		; no procs to declare
+	dc.w	q68kbd_init-romh
+	string$	{'Q68 extension ROM v[version]',10}
 
 ****** q68 PS2 keyboard interface ********
 
@@ -29,36 +66,42 @@ romh:
 ;SV_LPOLL	EQU	$08	; (long) ptr to next link
 				; (long) address of POLLed int routine
 
-VAR.KEYtab   EQU	$44	; (long) ptr to ASCII table
+
+
+VAR.KEYtab   EQU	$3C	; (long) ptr to ASCII table
+
+VAR.IPClnk   EQU	$40	; link to next IPCOM front-end routine
+VAR.IPCemu   EQU	$44	; pointer to IPC keyrow emulation routine
 
 VAR.KEYraw   EQU	$48	; (8xbyte) used to emulate KEYROW
 
 VAR.CTLflg   EQU	$50	; (byte) CTRL key is down
 VAR.SHFflg   EQU	$51	; (byte) SHIFT key is down
 VAR.ALTflg   EQU	$52	; (byte) ALT key is down
-VAR.NLKflg   EQU	$53	; (byte) status of NUMLOCK
+VAR.ACTkey   EQU	$53	; (byte) value gotten from keyboard
 
-VAR.RLSflg   EQU	$54	; (byte) next key is to be released
-VAR.MODflg   EQU	$55	; (byte) next key is 'special'
+VAR.ARbuf    EQU	$54	; (4b) buffer for keyboard autorepeat cancel
 
-VAR.LEDflg   EQU	$56	; (byte) status of LEDs
+VAR.RLSflg   EQU	$58	; (byte) next key is to be released
+VAR.MODflg   EQU	$59	; (byte) next key is 'special'
 
-VAR.ACTkey   EQU	$58	; (byte) value gotten from keyboard
-VAR.ASCkey   EQU	$59	; (byte) value converted to ASCII
+; VAR.LEDflg   EQU	$56	; (byte) status of LEDs
 
-VAR.GFXflg   EQU	$5A	; (byte) status ALT-Gr key
+VAR.NLKflg   EQU	$5A	; (byte) status of NUMLOCK
 
-VAR.KEYdwc   EQU	$5C	; (byte) count of keys held down
+VAR.GFXflg   EQU	$5B	; (byte) status ALT-Gr key
+VAR.ASCkey   EQU	$5C	; (byte) value converted to ASCII
+VAR.KEYdwc   EQU	$5D	; (byte) count of keys held down
 VAR.KEYdwk   EQU	$5E	; (16 x byte) ACTUAL key-down list
 VAR.KEYdwa   EQU	$6E	; (16 x byte) ASCII key-down list
 
 VAR.LEN	    EQU	$7E	; length of vars
 
-*workaround broken gwass	
-vdwak	equ	VAR.KEYdwa-VAR.KEYdwk	
+*workaround broken gwass
+vdwak	equ	VAR.KEYdwa-VAR.KEYdwk
 
 * keytables from QDOS Classic
-* /home/rz/qdos/qdos-classic/QZ-net/CLSC/SRC/CORE/KBD_asm - main kbd driver 
+* /home/rz/qdos/qdos-classic/QZ-net/CLSC/SRC/CORE/KBD_asm - main kbd driver
 *	+ gets decoded keycodes/vars (bsr HW_KEY_read)
 ;	+ KEY_conv: convert to ASCII
 * /home/rz/qdos/qdos-classic/QZ-net/CLSC/SRC/Q40/KBD_asm
@@ -76,24 +119,37 @@ vdwak	equ	VAR.KEYdwa-VAR.KEYdwk
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;  start of ROM code
 
+initreg	reg	d1-d3/a0-a4
+
 q68kbd_init:
 
-	movem.l	d0-d3/d6-d7/a0-a4/a6,-(a7)
+	movem.l	initreg,-(a7)
 
 ;* driver memory
 	moveq	#0,d2		; owner is superBASIC
-        move.l  d2,$28048       ; crude method to remove mdv
-;* VAR.LEN should be enough	
+
+;* VAR.LEN should be enough
 	move.l	#18+VAR.LEN,d1  ; length
 	moveq	#$18,d0		;  MT.ALCHP
 	trap	#1		; allocate space
 
 	tst.l	d0
-	bne.s	ROM_EXIT 	; exit if error
+	bne	ROM_EXIT 	; exit if error
+	move.l	a0,a3           ; base of linkage block
+	moveq	#0,d0
+	trap	#1
+	cmpi.l	#'1.60',d2	; check QDOS version
+	blo.s	initerr		; must be Minerva
+	cmpi.l	#'2.00',d2	; not SMSQ/E...
+	bhs.s	initerr
+	move.l	sv_chtop(a0),a4	; base of extended sysvars
+	lea	$b0(a4),a0	; linkage block of MDV driver
+	moveq	#$23,d0		; MT.RDD
+	trap	#1		; unlink MDV driver
 
-	move.l	a0,a3
 ; --------------------------------------------------------------
 ;  set ASCII table and clear actual key.
+;; most code redundant as MT.ALCHP has cleared out area already!
 
 	lea	LNG_KTAB(pc),a0
 	move.l	a0,VAR.KEYtab(a3)
@@ -106,36 +162,66 @@ q68kbd_init:
 
 	lea	VAR.CTLflg(a3),a0
 
-	clr.w	(a0)+
-	move.w	#$00FF,(a0)+
-	clr.l	(a0)+		; clear/set the flags
+	clr.l	(a0)+
+	clr.l	(a0)+		; clear key flags + VAR.ARbuf
+	st	VAR.NLKflg(a3)	; set NUMLOCK
 
-	lea	VAR.ACTkey(a3),a0
-	clr.w	(a0)+		; clear keycodes
+;;	lea	VAR.ACTkey(a3),a0
+;;	clr.w	(a0)+		; clear keycodes
 
-	clr.w	sv_arcnt(a6)		; disable key repeat
+; ----------------------------------------------------------------
+; disable the Minerva polled task for reading the IPC, since there
+; is no IPC in the Q68
+
+	lea	ip_poll(a4),a0	; link to polled task
+	moveq	#$1d,d0		; MT.RPOLL
+	trap	#1
+
+; replace the ROM keyboard decode routine in sx_kbenc with our own
+
+	lea	Q68kbenc(pc),a0
+	move.l	a0,sx_kbenc(a4)
 ; --------------------------------------------------------------
 ;  link in polled task routine to handle keyboard
 
-	lea	POLL_SERver(pc),a1 ; address of routine
+;;	lea	POLL_SERver(pc),a1 ; redundant code, use real address
+        lea     RDKEYB(pc),a1   ; real address
 	lea	SV_LPOLL(a3),a0
 	move.l	a1,4(a0) 	; address of polled task
 	moveq	#$1c,d0		;  MT.LPOLL
 	trap	#1
-  GENIF BOOTDEV <> 0
-	bsr.s	boot_init
-  ENDGEN
-	
+	lea	VAR.IPClnk(a3),a0 ; address of IPC front-end linked list
+	lea	KR_ipcem(pc),a1	; address of IPC keyrow emulation routine
+	move.l	a1,4(a0)	; set pointer to routine
+	lea	sx_ipcom(a4),a1	; pointer to MT.IPCOM front-end list
+	move.w	$d2,a2		; UT.LINK
+	jsr	(a2)		; link in routine
+	bra.s	ROM_EXIT
+
+        GENIF BOOTDEV <> 0
+	bsr.s	boot_init       ; 'future enhancement...'
+	bra.s	ROM_EXIT
+        ENDGEN
+
+initerr	suba.l	a0,a0
+	lea	inerrms,a1
+	move.w	$d0,a2
+	jsr	(a2)		; print error message
+
 ROM_EXIT:
-	movem.l	(a7)+,d0-d3/d6-d7/a0-a4/a6
+	movem.l	(a7)+,initreg
 	rts
 
-*****************************************************	
+inerrms	string$	{'Incompatible QDOS Version!',10}
+
+	ds.w	0
+
+*****************************************************
 * BOOT driver for debugging purposes *
    GENIF BOOTDEV <> 0
 bpos	equ	$18		;  store pos at this offset in chdef block
-	
-boot_init	
+
+boot_init
         moveq    #0,d2                      ; owner
 ***XXXXX how much memory?
 	moveq	 #$24,d0
@@ -146,7 +232,7 @@ boot_init
 
 	move.l   a0,a2                      ; Adresse retten
 
-        lea      4(a2),a1 
+        lea      4(a2),a1
         lea      boot_io,a0
         move.l   a0,(a1)+
         lea      boot_open,a0
@@ -156,14 +242,14 @@ boot_init
 
         move.l  a2,a0
         moveq	#$20,d0		; mt.liod
-	trap	#1		
+	trap	#1
 ret_boot
 	rts
 
 boot_open
         move.l   a7,a3		; no pars
         move.w   $122,a2	; io.name
-        jsr      (a2)         
+        jsr      (a2)
         bra.s    wrong_nm
         bra.s    wrong_nm
         bra.s    ok_nm
@@ -172,11 +258,11 @@ boot_open
         dc.w     0		; 0 pars
 
 wrong_nm
-	moveq	#-7,d0 
+	moveq	#-7,d0
 	rts
 
 ok_nm
-*       cmp.l    #1,d3		
+*       cmp.l    #1,d3
 *	bne.s	exit_bn
         move.l   #$18+4,d1	;  just one long
 
@@ -219,12 +305,12 @@ bfbyte:
 	move.l	d0,bpos(a0)
 	clr.l	d0
 	rts
-	
+
 fend    moveq    #-10,d0
         rts
 bsbyte
 	moveq	#-20,d0
-	rts		
+	rts
 
 BOOT_CLOSE
          move.w   $c2,a2                        MM_RECHP
@@ -239,12 +325,12 @@ BOOT_CLOSE
 
 boot_len
 	dc.l	15
-boot_buf	
+boot_buf
 	dc.b	'LRUN win1_BOOT',10
-		
+
    ENDGEN
-        
-*****************************************************		
+
+*****************************************************
 
 
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -254,38 +340,38 @@ boot_buf
 ;  CTRL(bit7) SHFT(bit6) ROWnumber(bits5-3) COLnumber(bits2-0)
 
 QLRAWKEY:
- dc.b 149,164,148,147,166,180,156,158
- dc.b 162,43,8,154,160,150,190,175
- dc.b 165,179,172,155,182,183,188,169
- dc.b 187,174,145,11,205,208,213,203
- dc.b 14,99,87,97,70,66,71,23
- dc.b 104,117,112,93,63,45,18,61
- dc.b 53,35,49,33,6,2,50,7
- dc.b 48,40,95,31,127,29,82,125
- dc.b 113,100,84,83,102,116,92,94
- dc.b 98,106,103,90,96,86,126,111
- dc.b 101,115,108,91,118,119,124,105
- dc.b 123,110,81,24,13,16,114,109
- dc.b 21,36,20,19,38,52,28,30
- dc.b 34,42,39,26,32,22,62,47
- dc.b 37,51,44,27,54,55,60,41
- dc.b 59,46,17,88,77,80,85,75
- dc.b 139,227,215,225,198,194,199,151
- dc.b 232,245,240,221,191,173,146,189
- dc.b 181,163,177,161,134,130,178,135
- dc.b 176,168,223,159,255,157,210,253
- dc.b 241,228,212,211,230,244,220,222
- dc.b 226,234,231,218,224,214,254,239
- dc.b 229,243,236,219,246,247,252,233
- dc.b 251,238,209,152,141,144,242,237
- dc.b 9,9,137,137,73,73,201,201
- dc.b 12,12,140,140,76,76,204,204
- dc.b 10,10,138,138,74,74,202,202
- dc.b 15,15,143,143,79,70,207,207
- dc.b 25,25,153,153,89,89,217,217
- dc.b 1,129,65,193,3,131,67,195
- dc.b 4,132,68,196,0,128,64,192
- dc.b 5,133,69,197,78,107,72,58
+ dc.b 149,164,148,147,166,180,156,158   ; 00-07
+ dc.b 162,43,8,154,160,150,190,175      ; 08-0F
+ dc.b 165,179,172,155,182,183,188,169   ; 10-17
+ dc.b 187,174,145,11,205,208,213,203    ; 18-1F
+ dc.b 14,99,87,97,70,66,71,23           ; 20-27 (' '-''')
+ dc.b 104,117,112,93,63,45,18,61        ; 28-2F ('('-'/')
+ dc.b 53,35,49,33,6,2,50,7              ; 30-37 ('0'-'7')
+ dc.b 48,40,95,31,127,29,82,125         ; 38-3F ('8'-'?')
+ dc.b 113,100,84,83,102,116,92,94       ; 40-47 ('@'-'G')
+ dc.b 98,106,103,90,96,86,126,111       ; 48-4F ('H'-'O')
+ dc.b 101,115,108,91,118,119,124,105    ; 50-57 ('P'-'W')
+ dc.b 123,110,81,24,13,16,114,109       ; 58-5F ('X'-'_')
+ dc.b 21,36,20,19,38,52,28,30           ; 60-67 ('`'-'g')
+ dc.b 34,42,39,26,32,22,62,47           ; 68-6F ('h'-'o')
+ dc.b 37,51,44,27,54,55,60,41           ; 70-77 ('p'-'w')
+ dc.b 59,46,17,88,77,80,85,75           ; 78-7F ('x'-'(C)')
+ dc.b 139,227,215,225,198,194,199,151   ; 80-87
+ dc.b 232,245,240,221,191,173,146,189   ; 88-8F
+ dc.b 181,163,177,161,134,130,178,135   ; 90-97
+ dc.b 176,168,223,159,255,157,210,253   ; 98-9F
+ dc.b 241,228,212,211,230,244,220,222   ; A0-A7
+ dc.b 226,234,231,218,224,214,254,239   ; A8-AF
+ dc.b 229,243,236,219,246,247,252,233   ; B0-B7
+ dc.b 251,238,209,152,141,144,242,237   ; B8-BF
+ dc.b 9,9,137,137,73,73,201,201         ; C0-C7
+ dc.b 12,12,140,140,76,76,204,204       ; C8-CF
+ dc.b 10,10,138,138,74,74,202,202       ; D0-D7
+ dc.b 15,15,143,143,79,70,207,207       ; D8-DF
+ dc.b 25,25,153,153,89,89,217,217       ; E0-E7
+ dc.b 1,129,65,193,3,131,67,195         ; E8-EF
+ dc.b 4,132,68,196,0,128,64,192         ; F0-F7
+ dc.b 5,133,69,197,78,107,72,58         ; F8-FF
 
 QLRAWEND:
 
@@ -305,6 +391,8 @@ AWKASC	EQU	'/'		; into scheme if NUMLOCK is on
 ;*******************************************************************
 ;*
 ;*  Subroutine to decode raw keyboard value
+; Entry: D0 scan code from keyboard (PC-style)
+; Exit: none, sets CTL/SHF/ALT flags and VAR.ACTkey to scancode
 
 KEY_decode:
 
@@ -325,8 +413,8 @@ KEY_rTST:
 	cmp.b	#240,d0		; key release?
 	bne.s	KEY_sTST
 
-	move.b	d0,VAR.RLSflg(a3)
-	bra.s	KEY_none
+	move.b	d0,VAR.RLSflg(a3) ; set release flag
+	bra.s	KEY_none	; and exit
 
 KEY_sTST:
 	cmp.b	#18,d0		; left shift?
@@ -336,10 +424,10 @@ KEY_sTST:
 	bne.s	KEY_cTST
 
 KEY_sDO:
-	tst.b	VAR.RLSflg(a3)
-	beq.s	KEY_sSTO
+	tst.b	VAR.RLSflg(a3)	; key released?
+	beq.s	KEY_sSTO	; no
 
-	moveq	#0,d0
+	moveq	#0,d0		; clear flag
 
 KEY_sSTO
 	move.b	d0,VAR.SHFflg(a3)
@@ -680,83 +768,166 @@ KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 
 	ENDGEN
 
-******************************************************************		
-	
+******************************************************************
+
 ; --------------------------------------------------------------
 ;  Handle key event - response to a keyboard interrupt
-*  called inside poll routine	
+;  called from polled list
+
+rkeyreg REG	d3/a3-a4	; not really needed, but just in case...
 
 RDKEYB:
-	movem.l	d0/d1/a3/a4/a6,-(a7)
+	movem.l	rkeyreg,-(a7)
 
 ; read keyboard
-	btst.b	#0,KEY_STATUS
-	beq.s	RDKEYBX		; exit - should in fact do key repeat proc
-kbl	move.b	KEY_CODE,d0
-	move.b	#1,KEY_UNLOCK
-*	trap	#12
-		
-	bsr	KEY_decode
-		
-	tst.b	VAR.ACTkey(a3)
-	bne.s	RDKEYB0		; branch if alpha-char
+
+	move.l	SV_KEYQ(a6),d0	; current keyboard queue
+	beq	RDKEYBR		; if no queue
+	move.l	d0,a2		; A2 holds queue address
+	btst.b	#0,KEY_STATUS	; key pressed?
+	beq.s	RDKEYBX		; no, exit but do key repeat proc first
+kbl	move.b	KEY_CODE,d0	; get scan code
+	st	KEY_UNLOCK	; signal 'got it'
+	bsr	KEY_decode	; process shift/ctrl/alt/scancode
+
+	GENIF	DEBUG = 1
+	bsr	DBvars		; DEBUG: display vars
+	ENDGEN
+
+	tst.b	VAR.ACTkey(a3)	; get active scan code
+	bne.s	RDKEYB1		; branch if alpha-char
 
 	bsr	KR_DOIT		; else keyrow for SHF/CTL/ALT
 	bra.s	RDKEYBXL	; ...and next/exit
 
-RDKEYB0:
-	bsr	KEY_conv 	; convert to ASCII
-
-	tst.b	VAR.ASCkey(a3)
-	bne.s	RDKEYB1		; branch if valid key-stroke
-
-	bsr	KR_DOIT		; else keyrow for SHF/CTL/ALT
-	bra.s	RDKEYB3
-
 RDKEYB1:
-	tst.b	VAR.RLSflg(a3)
+	tst.b	VAR.RLSflg(a3)	; key released?
 	beq.s	RDKEYB2		; branch if key-down event
 
 	bsr	KR_REMV		; remove key from key-down-list
-	bra.s	RDKEYB3
-
-RDKEYB2:
-	bsr	KR_ENTR		; enter key into key-down-list # keyrow???
-	clr.w	sv_arcnt(a6)		; disable key repeat
-* this is the polled int	
-*	tst.b	VAR.ALTflg(a3)	; if part of ALT combination
-*	bne.s	RDKEYBX		; exit now & let polled int
-				; put key into Q
-
-*	bsr	POLL_K		; otherwise put into Q
-	tst.b	VAR.ALTflg(a3)
-	sne.b	d1
-	ror.w	#8,d1
-	move.b	VAR.ASCkey(a3),d1
-	ror.w	#8,d1
-	cmp.w	sv_arbuf(a6),d1
-	beq.s	RDKEYBXL	; ignore HW key repeat, want own
-*	trap	#12
-	bsr.s	q68kbinch
-*	trap	#12
-	bra.s	RDKEYBXL
-
-RDKEYB3:
 	clr.b	VAR.RLSflg(a3)	; clear the release flag
 	clr.b	VAR.ASCkey(a3)	; clear the ASCII keycode
-;RDKEYB4:			unused label
 	clr.b	VAR.ACTkey(a3)	; clear the ACTUAL keycode
-	CLR.W	sv_arbuf(A6)	; reset Autorepeat buffer
+	clr.l	VAR.ARbuf(a3)	; clear autorepeat buffer
+;;	CLR.W	sv_arbuf(A6)	; reset Autorepeat buffer
+	bra.s	RDKEYBXL	; and get next (if any)
+
+RDKEYB2:
+	move.l	VAR.CTLflg(a3),d0 ; test CTL/SHF/ALT+VAR.ACTkey
+	cmp.l	VAR.ARbuf(a3),d0 ; key code is same as last processed?
+	beq.s	RDKEYBXL	; yes, ignore autorepeat from keyboard
+	bsr.s	KEY_conv	; get ASCII code or 'special' codes
+
+	GENIF	DEBUG <> 0	; DEBUG: display output from KEY_conv
+
+	blt.s	RKDSPEC
+	beq.s	RKDNORM
+	move.w	#$0A00,d1	; ignore: display 00 & LF
+	bsr	DBBYTE
+	bra.s	RDKEYBdn
+RKDNORM	exg	d1,d2		; normal: display ASCII & LF
+	move.w	#$0A00,d1
+	or.b	d2,d1
+	bsr	DBBYTE
+	exg	d1,d2
+	bra.s	RDKEYBdn
+RKDSPEC	exg	d1,d2		; special: display $80+code & LF
+	move.w	#$0A80,d1
+	or.b	d2,d1
+	bsr.s	DBBYTE
+	exg	d1,d2
+
+	ENDGEN
+
+RDKEYBdn:
+	tst.l	d0		; -2: special, 0: normal, 2: ignore
+	bne.s	RDKEYBin	; if special or invalid code
+	bsr	KR_ENTR		; enter key into key-down-list
+
+; handle normal or special codes; call ip.kbrd vector which calls Q68kbenc
+; via sx.kbenc pointer. This also handles BREAK, CTRL-C, CAPS LOCK etc.
+
+RDKEYBin:
+	move.l	VAR.CTLflg(a3),VAR.ARbuf(a3) ; set ARbuf to scancode+SH/CT/ALT
+	move.l	a3,-(a7)	; save A3 b/c ip.kbrd smashes it!
+	move.w	$150,a0		; ip.kbrd
+	jsr	$4000(a0)
+	move.l	(a7)+,a3	; restore A3
 
 RDKEYBXL:
 	btst.b	#0,KEY_STATUS	;  more chars to read?
-	bne.s	kbl
-RDKEYBX:	
-	movem.l	(a7)+,d0/d1/a3/a4/a6
+	bne	kbl		; (can happen?)
+
+RDKEYBX:
+	tst.b	VAR.ARbuf+3(a3)	; key still held down?
+	sne	d5		; if yes, set D5
+; NOTE: only bit 3 significant (not bit 4 as Minerva doc says!)
+	move.w	$152,a3		; ip.kbend; handle auto-repeat and finish up
+	jsr	$4000(a3)
+
+RDKEYBR:
+	movem.l	(a7)+,rkeyreg
 	rts
+
+;; debugging code
+
+	GENIF	DEBUG = 1
+
+; Display variables from VAR.KEYraw to VAR.KEYdwc
+
+DBvars	movem.l	d0-d2/a1,-(a7)
+	moveq	#VAR.KEYdwk-VAR.KEYraw-1,d2
+	lea	VAR.KEYraw(a3),a1
+	move.w	#$2000,d1
+DBvlp	move.b	(a1)+,d1
+	bsr.s	DBBYTE
+	subq.w	#1,d2
+	bne	DBvlp
+	move.w	#$0A00,d1
+	move.b	(a1)+,d1
+	bsr.s	DBBYTE
+	movem.l	(a7)+,d0-d2/a1
+	rts
+
+; Display one byte (D1.B) in hex followed by character in D1 bits 8-15
+
+DBBYTE	movem.l	d0-d3/a0-a2,-(a7)
+	subq.l	#4,a7
+	move.l	a7,a0		; room for 4 characters
+	move.w	#3,-(a7)	; but we only use 3
+	bsr.s	dnibble		; store hex digits
+	bsr.s	dnibble
+	rol.w	#8,d1
+	move.b	d1,(a0)+	; store trailing character
+	suba.l	a0,a0		; use channel 0 or 1
+	move.l	a7,a1
+	move.w	$d0,a2		; UT.MTEXT
+	jsr	(a2)
+	addq.l	#6,a7
+	movem.l	(a7)+,d0-d3/a0-a2
+	rts
+
+; convert one nibble to hex digit
+
+dnibble	ror.b	#4,d1
+	moveq	#$0f,d0
+	and.b	d1,d0
+	cmpi.b	#9,d0
+	bls.s	dnib1
+	addq.b	#7,d0
+dnib1	addi.b	#'0',d0
+	move.b	d0,(a0)+
+	rts
+
+	ENDGEN
+
+;; JB: following code is redundant and now handled by ip.kbrd
 
 ; key ind d1.w, check for special keys, insert into keyq
 ; unlike Minerva d1 is always word=code:8,ALT:8
+
+	GENIF   0 = 1		; should not generate this anymore!
+
 q68kbinch:		
 	MOVEA.L	$4C(A6),A2	; SV.KEYQ
 	cmp.w	sv_cqch(a6),d1  ***cant work, swapped
@@ -832,53 +1003,65 @@ isprog
 *offscr
 *	move.l	(sp)+,a0	  restore a0
 *	rts
+
+        ENDGEN
 	
 ; --------------------------------------------------------------
-;  convert key-stroke to ASCII
+; convert key-stroke to ASCII or 'special' code
+
+; Entry: VAR.ACTkey and CTL/SHF/ALT flags set
+; Exit : D0.L: -2 special code, 0 normal code, +2 ignore code
+;	 D1.W: ASCII code or special code
 
 KEY_conv:
-	movem.l	d0/a0,-(a7)
+;;	movem.l	d0/a0,-(a7)	; redundant
 
 	clr.b	VAR.ASCkey(a3)	; clear the ASCII keycode
 
 	moveq	#0,d0
+	moveq	#0,d1		; initialise result
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
-	beq	KEY_convX	; exit if not alpha key
-
+	beq.s	KEY_convN	; exit if not alpha key
+;; JB: should never occur, already tested by calling code
 	cmpi.l	#KTB_OFFS_CT,d0
-	bcc	KEY_convX	; exit if out-of-bounds
+	bcc.s	KEY_convN	; exit if out-of-bounds
 
 	tst.b	VAR.RLSflg(a3)
 	bne.s	KEY_conv0	; skip if a key-up event
 
 ; check for special-action non-ascii key-combinations
 
-	tst.b	VAR.CTLflg(a3)
-	sne.b	d1
-	lsl.l	#8,d1
-
-	tst.b	VAR.SHFflg(a3)
-	sne.b	d1
-	lsl.l	#8,d1
-
-	tst.b	VAR.ALTflg(a3)
-	sne.b	d1
-	lsl.l	#8,d1
-
+	tst.b	VAR.CTLflg(a3)	; CTRL?
+	beq.s	key_conv0	; no, skip this section
+	tst.b	VAR.ALTflg(a3)	; ALT?
+	beq.s	KC_noalt
+	addq.b	#1,d1		; bit 0 = CTRL/ALT set
+KC_noalt:
+	tst.b	VAR.SHFflg(a3)	; SHIFT?
+	beq.s	KC_noshf
+	addq.b	#2,d1		; bit 1 = CTRL/SHIFT set
+KC_noshf:
 	move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
-	move.b	0(a0,d0.w),d1	; get "unshifted" ASCII value
+	move.b	0(a0,d0.w),d0	; get "unshifted" ASCII value
+	cmpi.b	#' ',d0		; SPACE?
+	beq.s	KC_spexit	; Yes, do special exit
+	subi.b	#9,d0		; TAB?
+	bne.s	KC_notab
+	addq.b	#4,d1		; bit 2 = CTRL/TAB set
+	bra.s	KC_spexit
+KC_notab:
+	subq.b	#10-9,d0	; test for ENTER
+	bne.s	KEY_conv0	; if not TAB/ENTER, skip
+	addq.b	#8,d1		; bit 3 = CTRL/ENTER set
 
-	cmpi.l	#$FF000020,d1	; try <CTL><SPC>
-; not sure if a4 is setup at this point, make it by hand and use a0	
-        move.l  sv_chtop(a6),a0 
-	beq	DO_BREAK
-	
-*	cmpi.l	#$FF000009,d1	; try <CTL><TAB>
-*	beq	DO_FLIP
-* needs to do ctlt safely..	
+KC_spexit:
+	moveq	#-2,d0;		'special' exit
+	rts
 
-*	cmpi.l	#$FFFFFF09,d1	; try <CTL><SHF><ALT><TAB>
-*	beq	DO_RESET
+; No valid keypress, signal 'ignore this return code'
+KEY_convN:
+	moveq	#2,d0
+	rts
 
 ; --------------------------------------------------------------
 ; convert to ASCII
@@ -890,9 +1073,8 @@ KEY_conv0:
 	move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
 	lea	KTB_OFFS_GR(a0),a0 ; adjust for ALT-Gr chars
 
-	moveq	#0,d0
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
-	move.b	0(a0,d0.w),d0	; convert to ASCII value
+	move.b	0(a0,d0.w),d1	; convert to ASCII value
 	bne.s	KEY_conv6	; branch if an OK char
 
 	clr.b	VAR.GFXflg(a3)
@@ -916,13 +1098,12 @@ KEY_conv2:
 	bra.s	KEY_conv8
 
 KEY_conv2a:
-	moveq	#0,d0
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
 	lea	KTB_OFFS_SH(a0),a0 ; pre-adjust for shifted chars
 	move.b	0(a0,d0.w),d0	; convert to ASCII value
 
-	tst.b	VAR.SHFflg(a3)
-	sne.b	d1
+	tst.b	VAR.SHFflg(a3)  ; SHIFT?
+	sne.b	d1              ; set D1
 
 	cmpi.b	#'.',d0
 	beq.s	KEY_conv3	; numeric
@@ -946,53 +1127,88 @@ KEY_conv4:
 	suba.l	#KTB_OFFS_SH,a0	; unadjust for shifted chars
 
 KEY_conv5:
-	moveq	#0,d0
-	move.b	VAR.ACTkey(a3),d0 ; get keycode key
-	move.b	0(a0,d0.w),d0	; convert to ASCII value
+	move.b	VAR.ACTkey(a3),d1 ; get keycode key
+	move.b	0(a0,d1.w),d1	; convert to ASCII value
 
 KEY_conv6:
 	tst.b	SV_CAPS(a6)	; check for CAPS lock
 	beq.s	KEY_conv8
 
-	cmp.b	#'a',d0		; check for lower case
-	blt.s	KEY_conv7
+	cmp.b	#'a',d1		; check for lower case
+	blo.s	KEY_conv7
 
-	cmp.b	#'z',d0
-	bgt.s	KEY_conv7
+	cmp.b	#'z',d1
+	bhi.s	KEY_conv7
 
-	sub.b	#32,d0		; change to upper case
+	sub.b	#32,d1		; change to upper case
 	bra.s	KEY_conv8
 
 KEY_conv7:
-	cmp.b	#128,d0		; check lower case accented
-	blt.s	KEY_conv8
+	cmp.b	#128,d1		; check lower case accented
+	blo.s	KEY_conv8	;; should be BLO/BCS???
 
-	cmp.b	#139,d0
-	bgt.s	KEY_conv8
+	cmp.b	#139,d1
+	bhi.s	KEY_conv8	;; should be BHI???
 
-	add.b	#32,d0		; change to upper case
+	add.b	#32,d1		; change to upper case
 
 KEY_conv8:
+	move.b	d1,VAR.ASCkey(a3) ; store new key
 	tst.b	VAR.ALTflg(a3)	; check alt flag
-	beq.s	KEY_conv9
+	beq.s	KEY_convA	; no ALT
+	cmpi.b	#$C0,d1		; test for cursor/caps keys
+	blo.s	KEY_conv9	; 
 
-	cmpi.b	#$C0,d0		; test for cursor/caps keys
-	blt.s	KEY_conv9
-
-	cmpi.b	#$e8,d0		; test for cursor/caps keys
-	bge.s	KEY_conv9
-
-	andi.b	#$FE,d0
-	add.b	#$01,d0
+	cmpi.b	#$e8,d1		; test for cursor/caps keys
+	bhs.s	KEY_conv9
+	ori.b	#1,d1		; ALT on cursor keys means bit 0 set
+	move.b	d1,VAR.ASCkey(a3) ; reset VAR.ASCkey
+	bra.s	KEY_convA
 
 KEY_conv9:
-	move.b	d0,VAR.ASCkey(a3) ; store new key
+	lsl.w	#8,d1		; move code to bits 8-15
+	st	d1		; signal ALT code in bits 0-7
 
 KEY_convA:
 	clr.b	VAR.MODflg(a3)	; clear the weird flag
 
 KEY_convX:
-	movem.l	(a7)+,d0/a0
+	moveq	#0,d0		; signal 'normal valid code'
+
+;;	movem.l	(a7)+,d0/a0 redundant
+	rts
+
+; -----------------------------------------------------------------------------
+; The 'keyboard encode' routine is called from ip.kbenc vector via the sx.kbenc
+; pointer. On a standard QL, this does most of the conversion from 'raw' key
+; codes to ASCII. However, we have already done this in the KEY_conv routine
+; above. What remains to be done is taking different returns according to the
+; result of the conversion:
+; - Direct return: take special action (BREAK, CTRL-TAB, CTRL-ENTER, etc)
+; - Return addr+2: normal ASCII code
+; - Return addr+4: invalid scan code or 'compose' key, ignore this
+;
+; Since D0 has already been set up by KEY_conv to hold -2, 0 or +2 respectively
+; in these cases, the remaining code will be quite straightforward. We do have
+; to check though for CAPS LOCK and CTRL-F5, which perform special functions 
+; but do have valid ASCII codes (which KEYROW emulation depends on).
+
+Q68kbenc:
+	tst.l	d0		; valid ASCII code?
+	bne.s	Q68kb_2		; no, skip
+	cmpi.w	#$00E0,d1	; CAPS LOCK?
+	beq.s	Q68kb_cap	; Yes, make 'special' return
+	cmpi.w	#$00F9,d1	; CTRL-F5?
+	beq.s	Q68kb_cf5	; Yes, make 'special' return
+Q68kb_2:
+	addq.l	#2,d0           ; D0 now holds 0, 2 or 4
+	add.l	d0,(a7)         ; Set return address accordingly
+	rts                     ; and exit back to Minerva to handle the key
+Q68kb_cap:
+	moveq	#10,d1		; 'special' code for CAPS LOCK
+	rts
+Q68kb_cf5:
+	moveq	#5,d1		; 'special' code for CTRL-F5
 	rts
 
 ; --------------------------------------------------------------
@@ -1001,24 +1217,24 @@ KEY_convX:
 KR_ENTR:
 	movem.l	d0-d3/a0-a1,-(a7)
 
-	move.b	VAR.ACTkey(a3),d1
+	move.b	VAR.ACTkey(a3),d1   ; active key scancode
 
 	moveq	#0,d0
-	move.b	VAR.KEYdwc(a3),d0
-	beq.s	KR_EADD
+	move.b	VAR.KEYdwc(a3),d0   ; count of keys down
+	beq.s	KR_EADD             ; if empty, add immediately
 
-	cmpi.b	#16,d0
-	beq.s	KR_EXIT
+	cmpi.b	#16,d0              ; buffer full?
+	beq.s	KR_EXIT             ; yes, forget about it
 
-	lea	VAR.KEYdwk(a3,d0.w),a0
-	bra.s	KR_EBEG
+	lea	VAR.KEYdwk(a3,d0.w),a0 ; end of list
+	bra.s	KR_EBEG             ; enter loop
 
 KR_ELUP:
 	cmp.b	-(a0),d1
 	beq.s	KR_EXIT		; exit if already in list
 
 KR_EBEG
-	dbra	d0,KR_ELUP
+	dbra	d0,KR_ELUP          ; loop for all entries
 
 KR_EADD:
 	moveq	#0,d0
@@ -1026,7 +1242,8 @@ KR_EADD:
 	move.b	d1,VAR.KEYdwk(a3,d0.w)	; put in list
 	move.b	VAR.ASCkey(a3),d1
 	move.b	d1,VAR.KEYdwa(a3,d0.w)	; put in list
-	addi.b	#1,VAR.KEYdwc(a3) 	; increment count
+; 	addi.b	#1,VAR.KEYdwc(a3) 	; increment count
+	addq.b	#1,VAR.KEYdwc(a3) 	; a bit quicker and shorter...
 
 	bsr.s	KR_DOIT
 
@@ -1040,35 +1257,36 @@ KR_EXIT:
 KR_REMV:
 	movem.l	d0-d3/a0-a1,-(a7)
 
-	move.b	VAR.ACTkey(a3),d1
+	move.b	VAR.ACTkey(a3),d1   ; active key code
 
 	moveq	#0,d0
-	move.b	VAR.KEYdwc(a3),d0
-	beq.s	KR_RXIT
+	move.b	VAR.KEYdwc(a3),d0   ; get key count
+	beq.s	KR_RXIT             ; if zero, exit immediately
 
-	lea	VAR.KEYdwk(a3,d0.w),a0
-	bra.s	KR_RBEG
+	lea	VAR.KEYdwk(a3,d0.w),a0 ; point to last entry
+	bra.s	KR_RBEG             ; enter loop
 
 KR_RLUP:
 	cmp.b	-(a0),d1
-	beq.s	KR_RDEL			; found entry
+	beq.s	KR_RDEL             ; found entry
 
 KR_RBEG
-	dbra	d0,KR_RLUP
-	bra.s	KR_RXIT
+	dbra	d0,KR_RLUP          ; loop
+	bra.s	KR_RXIT             ; not found, exit
 
 KR_RDEL:
-	subi.b	#1,VAR.KEYdwc(a3) 	; decrement count
+;	subi.b	#1,VAR.KEYdwc(a3) 	; decrement count
+	subq.b	#1,VAR.KEYdwc(a3) 	; decrement count
 	moveq	#0,d0
 	move.b	VAR.KEYdwc(a3),d0
 	move.b	VAR.KEYdwk(a3,d0.w),(a0)	; move last entry
-* gwass does not like this, use workaround	
-*	move.b	VAR.KEYdwa(a3,d0.w),(VAR.KEYdwa-VAR.KEYdwk)(a0)
+; gwass does not like this, use workaround	
+;	move.b	VAR.KEYdwa(a3,d0.w),(VAR.KEYdwa-VAR.KEYdwk)(a0)
 	move.b	VAR.KEYdwa(a3,d0.w),vdwak(a0)
 	clr.b	VAR.KEYdwk(a3,d0.w)	; delete last entry
 	clr.b	VAR.KEYdwa(a3,d0.w)
 
-	bsr.s	KR_DOIT
+	bsr.s	KR_DOIT             ; update keyrow list
 
 KR_RXIT:
 	movem.l	(a7)+,d0-d3/a0-a1
@@ -1093,7 +1311,7 @@ KR_DOIT:
 
 KR_DLUP:
 	moveq	#0,d1
-	move.b	-(a0),d1
+	move.b	-(a0),d1            ; ascii code
 
 	lea	QLRAWKEY(pc),a1
 	moveq	#0,d2
@@ -1151,23 +1369,47 @@ KR_DXIT:
 	rts
 
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DO_BREAK:
+;;DO_BREAK:
 * Minerva specific.... 
-	bset	#4,sx_event(a0)
-	CLR.B	VAR.ASCkey(A3)	; reset key event
-	bra	KEY_convA
+;;	bset	#4,sx_event(a0)
+;;	CLR.B	VAR.ASCkey(A3)	; reset key event
+;;	bra	KEY_convA
 
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;  Polled interrupt routine to read the keyboard
 ;  enters with a6=sys vars, a3=our (keyboard) vars
 
-POLL_SERver:
-        move.l  sv_keyq(a6),d0   fetch ptr to current keyboard queue
-        beq.s   POLL_EXIT        no queue, don't bother reading the IPC 
-	bsr	RDKEYB		;  read keys, translate, stuff to q
-POLL_EXIT:
-	rts
+;; Redundant now; RDKEYB is called directly from polled list
 
+;;POLL_SERver:
+;;	move.l  sv_keyq(a6),d0   fetch ptr to current keyboard queue
+;;	beq.s   POLL_EXIT        no queue, don't bother reading the IPC 
+;;	bsr	RDKEYB		;  read keys, translate, stuff to q
+;;POLL_EXIT:
+;;	rts
+
+; -------------------------------------------------------------------
+; IPC keyboard direct read command emulation
+; This uses the MT.IPCOM front-end linked list feature in Minerva
+; Entry: D0.B IPC command (we only process type 9)
+;	 D5.L parameter length (ignored, we only use bits 0-3)
+;	 D7.B parameter count (should be 1)
+;	 A0.L pointer to link (in our case VAR.IPClnk)
+;	 A3.L pointer to parameter (KEYROW argument)
+; Exit:	 D1.B return code (KEYROW bits)
+;	 Returns at return address +2 if valid command, else direct return.
+
+KR_IPCem:
+	cmpi.b	#9,d0		; IPC KEYROW command?
+	bne.s	KR_IPCrt	; no, return immediately
+	cmpi.b	#1,d7		; sanity check; parameter count should be 1
+	bne.s	KR_IPCrt	; just to be on the safe side...
+	addq.l	#2,(a7)		; okay, we'll do it so take second return addr
+	moveq	#7,d0
+	and.b	(a3),d0		; D0 now holds keyrow number
+	move.b	VAR.KEYraw-VAR.IPClnk(a0,d0.w),d1 ; get KEYROW byte
+KR_IPCrt:
+	rts			; Done
 
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;  BASIC extensions not fully implemented yet

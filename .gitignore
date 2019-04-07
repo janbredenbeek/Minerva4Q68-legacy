@@ -23,3 +23,11 @@ $RECYCLE.BIN/
 # UQLX directories
 .-UQLX-
 
+# _list, _rel etc
+*_list
+*_rel
+*_map
+*_bin
+*_exe
+*_debug
+

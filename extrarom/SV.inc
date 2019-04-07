@@ -80,6 +80,8 @@ SV_THING equ $B8  L THING list
 
 *spare   equ $BC  W*25
 
+SYS_KLNK equ $E8  L pointer to keyboard linkage blok (taken from SMSQ/E)
+
 SV_MDRUN equ $EE  B which drive is running?
 SV_MDCNT equ $EF  B microdrive run-up run-down counter
 SV_MDDID equ $F0  B*8 drive ID*4 of each microdrive
