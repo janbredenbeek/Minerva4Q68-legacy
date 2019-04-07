@@ -31,7 +31,7 @@ The devices win1_ to win8_ and qub1_ to qub8_ can be configured to be mapped to 
 Current issues:
 ---------------
 
-- The keyboard driver currently does not support auto-repeat and key mappings need to be updated.
+- The SD-card driver requires a CARD_INIT 2 command to use the SD card in slot 2; other SD-card related commands are presently not implemented.
 - The maximum amount of RAM supported is limited to 16MB, as the slave block system's structure currently prevents supporting more RAM.
 - The serial port and network port of the Q68 are not supported.
 - Building instructions need to be added (work in progress).
