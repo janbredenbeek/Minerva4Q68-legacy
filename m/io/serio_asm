@@ -88,7 +88,8 @@ action
         jmp     (a4)            serio: return to word past the addresses
 
 io_pend
-*       moveq   #0,d0           test routine is the first element
+* BUGFIX: re-instated line below, see https://www.kilgus.net/2018/02/27/debugging-minerva/
+        moveq   #0,d0           test routine is the first element
         bsr.s   vectest         set up test routine address
         bra.s   callit          go do it
 
