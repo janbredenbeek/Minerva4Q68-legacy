@@ -4,6 +4,7 @@
         xref    io_qin,io_qtest
         xref    sd_cure
 
+        include 'win1_m_mincf'
         include 'win1_m_inc_assert'
         include 'win1_m_inc_bv'
         include 'win1_m_inc_ch'
@@ -143,7 +144,14 @@ ctlt1
         rts
 
 soft
+        GENIF   q68 <> 0
+        move.l  #Q68_RAMT*1024+9,d1 ; for Q68 limit RAM test
+        ENDGEN
+
+        GENIF   q68 = 0
         moveq   #9,d1
+        ENDGEN
+
         jmp     390             soft reset, quick
 
 ctlc
