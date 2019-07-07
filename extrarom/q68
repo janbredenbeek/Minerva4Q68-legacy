@@ -15,10 +15,24 @@ MOUSE_STATUS	equ	 $1C008
 **;;KEY_STATUS 	equ	 $1C004		* PS2_STATUS now renamed to KEY_STATUS
 KEY_STATUS 	equ	 $1C148
 
-UART_TXDATA 	equ	 $1C010
-UART_RXDATA 	equ	 $1C012
-UART_STATUS 	equ	 $1C014
-UART_PRESCALE   equ	 $1C016
+; ser comms keys
+uart_txdata	equ	$1c200
+uart_rxdata	equ	$1c204
+uart_status	equ	$1c208		; ser port status
+q68..txmpty	 equ	   0		  ; Read-only Transmit Buffer Empty
+q68..rxmpty	 equ	   1		  ; Read-only Receive Buffer Empty
+q68..rxfrerr	 equ	   2		  ; Read-only Receive Frame Error
+q68..rxovr	 equ	   3		  ; Read-only Receive Overrun Error
+q68..rxfull	 equ	   4		  ; Read-only Receive FIFO Full
+q68..txstat	 equ	   6		  ; bit set to enable transmit interrupt
+q68..rxstat	 equ	   7		  ; bit set to enable receive interrupt
+q68.rxand	 equ	   2		  ; value to AND status with to check for rx bit
+q68.txand	 equ	   1		  ; value to AND status with to check for rx bit
+uart_prescale	equ	$1c20c		; word
+q68_prty	equ	1		; no parity
+q68_hand	equ	0		; no handshake
+q68_prhd	equ	q68_prty<<8+q68_hand   ; parity and handshake combined
+q68_ser_link	equ	$17d08		; keep ptr to ser linkage block here
 
   ENDGEN
 

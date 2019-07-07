@@ -34,10 +34,11 @@ q68	equ	1
 ;*  q68_keyc equ	1		; keyboard layout code (1 = US, 44 = UK, 49 = DE) 
 ;*  should go into userdefs
 
-        include userdefs
-        include sv.inc
-        include sx.inc
-        include q68
+         include userdefs
+         include sv.inc
+         include sx.inc
+         include q68
+         include q68hw.inc
 
 string$	macro	a
 	noexpand
@@ -56,49 +57,6 @@ romh:
 	string$	{'Q68 extension ROM v[version]',10}
 
 ****** q68 PS2 keyboard interface ********
-
-*  linked in as poll routine, all variables stored rel a3
-*  KEYBOARD variables
-
-;SV_LXINT	EQU	$00	; (long) ptr to next link
-				; (long) address of EXT INT routine
-
-;SV_LPOLL	EQU	$08	; (long) ptr to next link
-				; (long) address of POLLed int routine
-
-
-
-VAR.KEYtab   EQU	$3C	; (long) ptr to ASCII table
-
-VAR.IPClnk   EQU	$40	; link to next IPCOM front-end routine
-VAR.IPCemu   EQU	$44	; pointer to IPC keyrow emulation routine
-
-VAR.KEYraw   EQU	$48	; (8xbyte) used to emulate KEYROW
-
-VAR.CTLflg   EQU	$50	; (byte) CTRL key is down
-VAR.SHFflg   EQU	$51	; (byte) SHIFT key is down
-VAR.ALTflg   EQU	$52	; (byte) ALT key is down
-VAR.ACTkey   EQU	$53	; (byte) value gotten from keyboard
-
-VAR.ARbuf    EQU	$54	; (4b) buffer for keyboard autorepeat cancel
-
-VAR.RLSflg   EQU	$58	; (byte) next key is to be released
-VAR.MODflg   EQU	$59	; (byte) next key is 'special'
-
-; VAR.LEDflg   EQU	$56	; (byte) status of LEDs
-
-VAR.NLKflg   EQU	$5A	; (byte) status of NUMLOCK
-
-VAR.GFXflg   EQU	$5B	; (byte) status ALT-Gr key
-VAR.ASCkey   EQU	$5C	; (byte) value converted to ASCII
-VAR.KEYdwc   EQU	$5D	; (byte) count of keys held down
-VAR.KEYdwk   EQU	$5E	; (16 x byte) ACTUAL key-down list
-VAR.KEYdwa   EQU	$6E	; (16 x byte) ASCII key-down list
-
-VAR.LEN	    EQU	$7E	; length of vars
-
-*workaround broken gwass
-vdwak	equ	VAR.KEYdwa-VAR.KEYdwk
 
 * keytables from QDOS Classic
 * /home/rz/qdos/qdos-classic/QZ-net/CLSC/SRC/CORE/KBD_asm - main kbd driver
