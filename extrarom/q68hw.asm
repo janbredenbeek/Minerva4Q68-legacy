@@ -8,6 +8,11 @@
 ; 
 ; Changelog:
 ;
+; 20210505 JB:
+;
+; Added scan for ROM header at end so another extension ROM image may be
+; appended to the code (e.g. the SD-card driver), to reduce unused ROM space.
+;
 ; 20190407 JB:
 ;
 ;   MDV driver now cleanly unlinked
@@ -24,7 +29,7 @@
 
 	section q68_q68hw
 
-version	setstr	1.1
+version	setstr	1.2
 
 DEBUG	equ	0		; set to 1 to display variables and result code
 
@@ -34,11 +39,10 @@ q68	equ	1
 ;*  q68_keyc equ	1		; keyboard layout code (1 = US, 44 = UK, 49 = DE) 
 ;*  should go into userdefs
 
-         include userdefs
-         include sv.inc
-         include sx.inc
-         include q68
-         include q68hw.inc
+        include userdefs
+        include sv.inc
+        include sx.inc
+        include q68
 
 string$	macro	a
 	noexpand
@@ -50,13 +54,93 @@ string$	macro	a
 
 BOOTDEV equ     0
 
+; This is the start of the extension ROM header.
+; Since our code is only about 2K and the system ROM scans for extension ROMs
+; in increments of 16K, we would waste nearly 14K of space which could be
+; occupied by another extension ROM. Also, Wolfgangs's SD-card driver is about
+; 20K in length, wasting 12K of valuable ROM space. By combining our code with
+; the SD-card driver, we can free up 16K in the $14000-$17FFF area, thus
+; allowing for another extension ROM to be included in the 96K ROM image.
+; For example, Toolkit II can now be included in the ROM image and doesn't have
+; to be loaded from the BOOT file.
+; Another scenario for extension ROMs which insist on placement in the $C000
+; area is to include these right after the system ROM image, before the
+; keyboard and SD-driver ROM.
+; After doing our own initialisation, we now look for a ROM header following
+; our code. If there is one, we do the usual initialisation that the system
+; ROM does.
+
 romh:
 	dc.l	$4afb0001       ; ROM marker
 	dc.w	0		; no procs to declare
-	dc.w	q68kbd_init-romh
+	dc.w	rom_init-romh
 	string$	{'Q68 extension ROM v[version]',10}
+         ds.w     0
+
+rom_init bsr.s    q68kbd_init       ; do our own initialisation
+         move.l   a3,-(sp)          ; save ROM pointer
+         lea      rom_end(pc),a3    ; end of our code
+         cmpi.l   #$4afb0001,(a3)   ; is there another extension ROM after us?
+         bne.s    bye               ; no, exit
+         lea      8(a3),a1          ; ROM name
+         suba.l   a0,a0
+         move.w   ut_mtext,a2       ; print it
+         jsr      (a2)
+         move.w   4(a3),d0          ; S*Basic procs?
+         beq.s    in_nobas          ; no
+         lea      (a3,d0.w),a1
+         move.w   bp_init,a2        ; else, link them in
+         jsr      (a2)
+in_nobas move.w   6(a3),d0          ; init routine?
+         beq.s    bye               ; no
+         jsr      (a3,d0.w)         ; else, call it
+bye      move.l   (sp)+,a3          ; restore ROM pointer
+         rts
 
 ****** q68 PS2 keyboard interface ********
+
+*  linked in as poll routine, all variables stored rel a3
+*  KEYBOARD variables
+
+;SV_LXINT	EQU	$00	; (long) ptr to next link
+				; (long) address of EXT INT routine
+
+;SV_LPOLL	EQU	$08	; (long) ptr to next link
+				; (long) address of POLLed int routine
+
+
+
+VAR.KEYtab   EQU	$3C	; (long) ptr to ASCII table
+
+VAR.IPClnk   EQU	$40	; link to next IPCOM front-end routine
+VAR.IPCemu   EQU	$44	; pointer to IPC keyrow emulation routine
+
+VAR.KEYraw   EQU	$48	; (8xbyte) used to emulate KEYROW
+
+VAR.CTLflg   EQU	$50	; (byte) CTRL key is down
+VAR.SHFflg   EQU	$51	; (byte) SHIFT key is down
+VAR.ALTflg   EQU	$52	; (byte) ALT key is down
+VAR.ACTkey   EQU	$53	; (byte) value gotten from keyboard
+
+VAR.ARbuf    EQU	$54	; (4b) buffer for keyboard autorepeat cancel
+
+VAR.RLSflg   EQU	$58	; (byte) next key is to be released
+VAR.MODflg   EQU	$59	; (byte) next key is 'special'
+
+; VAR.LEDflg   EQU	$56	; (byte) status of LEDs
+
+VAR.NLKflg   EQU	$5A	; (byte) status of NUMLOCK
+
+VAR.GFXflg   EQU	$5B	; (byte) status ALT-Gr key
+VAR.ASCkey   EQU	$5C	; (byte) value converted to ASCII
+VAR.KEYdwc   EQU	$5D	; (byte) count of keys held down
+VAR.KEYdwk   EQU	$5E	; (16 x byte) ACTUAL key-down list
+VAR.KEYdwa   EQU	$6E	; (16 x byte) ASCII key-down list
+
+VAR.LEN	    EQU	$7E	; length of vars
+
+*workaround broken gwass
+vdwak	equ	VAR.KEYdwa-VAR.KEYdwk
 
 * keytables from QDOS Classic
 * /home/rz/qdos/qdos-classic/QZ-net/CLSC/SRC/CORE/KBD_asm - main kbd driver
@@ -101,7 +185,7 @@ q68kbd_init:
 	cmpi.l	#'2.00',d2	; not SMSQ/E...
 	bhs.s	initerr
 	move.l	sv_chtop(a0),a4	; base of extended sysvars
-	lea	$b0(a4),a0	; linkage block of MDV driver
+	lea	$b0(a4),a0	; linkage block of MDV driver         
 	moveq	#$23,d0		; MT.RDD
 	trap	#1		; unlink MDV driver
 
@@ -1372,6 +1456,6 @@ KR_IPCrt:
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;  BASIC extensions not fully implemented yet
 
-	
+rom_end  equ      *
 
 	end

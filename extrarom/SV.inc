@@ -123,4 +123,10 @@ SV_AIO   equ $1C  L address of input/output routine
 SV_AOPEN equ $20  L address of channel open routine
 SV_ACLOS equ $24  L address of channel close routine
 
+* vectors
+
+ut_mtext equ $d0  print string at (a1)
+bp_init  equ $110 initialise S*BASIC procs/funcs
+
+
         list
