@@ -21,29 +21,25 @@ The 80K ROM images contain the Minerva operating system, a keyboard driver speci
 By default, the devices win1_ and win2_ will be mapped to container files QLWA.WIN on SDHC drives 1 and 2 respectively. If present, the devices qub1_ and qub2_ will be mapped to Qubide container files QL_BDI.BIN on SDHC drives 1 and 2 respectively. This can be changed by configuring the Q68_ROM.SYS file (see below).
 
 By combining the keyboard and SD-card driver, the size of the ROM image has been reduced from 96K to 80K. The remaining 16K may be used to add another 16K extension ROM image, e.g. Toolkit II. This additional extension ROM will be placed at location $14000, after the Q68_ROM.SYS image. To build a complete 96K image, the extension ROM should be placed in the ~/q68 directory under the name x14000_rom and a rebuild done. Alternatively, the Q68_ROM.SYS image may be extended by issuing the following commands in an emulated QDOS or SMSQ/E environment:
-
-``
-base=RESPR(96*1024)
-LBYTES Q68_ROM.SYS,base
-LBYTES extension_rom_image,base+80*1024
-RENAME Q68_ROM.SYS,Q68_ROM.ORG
+~~~
+base=RESPR(96*1024)\
+LBYTES Q68_ROM.SYS,base\
+LBYTES extension_rom_image,base+80*1024\
+RENAME Q68_ROM.SYS,Q68_ROM.ORG\
 SBYTES Q68_ROM.SYS,base,96*1024
-``
-
+~~~
 and then the Q68_ROM.SYS file must be copied to a FAT32-formatted SDHC card. Please note that the Q68 requires the files on this card to lie in *contiguous* sectors, so if there are already any files on the card it's strongly recommended to save these, then reformat the card, and then write all files back at once.
 
 If you have extension ROMs that insist on being placed in the $C000 slot, you may include them by placing the image in the ~/q68 directory under the name xc000_rom. The keyboard and SD-card driver images will then be relocated to the $10000-$17FFF area and linked in after the xc000_rom extension. Note that you may include an extension ROM either at $C000 or $14000, but not at both locations as the total size of Minerva plus Q68 drivers plus extension ROM is limited to 96K!
 
 As an alternative to loading the ROM image at startup, we now provide a boot loader which allows the Minerva system to be loaded from within a running SMSQ/E system. This avoids the need to use a separate FAT32-formatted SDHC card, and allows you to boot Minerva with a single LRESPR command. The boot loader Min4Q68ldr.bin is just 32 bytes and must be followed by the Q68_ROM.SYS image itself. Using 'make lrespr' after building the Q68_ROM.SYS image will create a Min4Q68_rext file which may be copied to a QDOS WIN container. Alternatively, you may create this file from within a QDOS-compatible system itself by issuing the following commands:
-
-``
+~~~
 size=96*1024+32
 base=RESPR(size)
 LBYTES Min4Q68ldr.bin,base
 LBYTES Q68_ROM.SYS,base+32
 SBYTES Min4Q68_rext,base,size
-``
-
+~~~
 CONFIGURATION:
 --------------
 
