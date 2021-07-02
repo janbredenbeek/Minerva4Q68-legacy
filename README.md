@@ -22,10 +22,10 @@ By default, the devices win1_ and win2_ will be mapped to container files QLWA.W
 
 By combining the keyboard and SD-card driver, the size of the ROM image has been reduced from 96K to 80K. The remaining 16K may be used to add another 16K extension ROM image, e.g. Toolkit II. This additional extension ROM will be placed at location $14000, after the Q68_ROM.SYS image. To build a complete 96K image, the extension ROM should be placed in the ~/q68 directory under the name x14000_rom and a rebuild done. Alternatively, the Q68_ROM.SYS image may be extended by issuing the following commands in an emulated QDOS or SMSQ/E environment:
 ~~~
-base=RESPR(96*1024)\
-LBYTES Q68_ROM.SYS,base\
-LBYTES extension_rom_image,base+80*1024\
-RENAME Q68_ROM.SYS,Q68_ROM.ORG\
+base=RESPR(96*1024)
+LBYTES Q68_ROM.SYS,base
+LBYTES extension_rom_image,base+80*1024
+RENAME Q68_ROM.SYS,Q68_ROM.ORG
 SBYTES Q68_ROM.SYS,base,96*1024
 ~~~
 and then the Q68_ROM.SYS file must be copied to a FAT32-formatted SDHC card. Please note that the Q68 requires the files on this card to lie in *contiguous* sectors, so if there are already any files on the card it's strongly recommended to save these, then reformat the card, and then write all files back at once.
