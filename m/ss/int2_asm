@@ -9,11 +9,14 @@
         include 'win1_m_inc_pc'
         include 'win1_m_inc_bt'
         include 'win1_m_inc_assert'
+        include 'win1_m_mincf'
 
         section ss_int2
 
 regsone reg     d7/a5-a6        a data reg, a5, and base of sys_var
 regstwo reg     d0-d6/a0-a4     the rest
+
+        GENIF   q68 = 0         ; Q68 has no gap interrupt
 
 gpint
 *       moveq   #0,d3           already set for us
@@ -37,6 +40,8 @@ no_op
         clr.b   d7              next reset the gap mask to normal
         bra.s   clearint        generate an interrupt if gap is already there
 
+        ENDGEN
+
 ss_intrd
 * Non-redirected traps come here... maybe we can get away with just this.
 
@@ -54,6 +59,9 @@ ss_int2
         lsl.b   #4,d7           check for external or frame interrupts
         bcs.s   exint
         bmi.s   frint
+        
+        GENIF   q68 = 0        ; no IPC, tx or gap interrupts on Q68
+        
         moveq   #0,d3           no missing polls is common-ish
         assert  1<<2,pc.intrt,pc.intri<<1
         lsl.b   #2,d7           check for transmit, interface & gap interrupts
@@ -62,6 +70,8 @@ ss_int2
         bne.s   gpint
         bra.s   nonred          no bits set! used for non-redirected traps!
 
+        ENDGEN
+* on Q68, continue into exint (currently it doesn't set the exint bit!)                        
 exint
         moveq   #sv_i2lst-sv_i2lst,d4 set offset of int 2 list from int 2 list
         jsr     ss_tlist(pc)    do all external interrupt tasks
@@ -85,6 +95,8 @@ is_sup
         bne.s   one_rte         yes - direct return
         jmp     ss_reshd(pc)    reenter scheduler
 
+        GENIF   q68 = 0         ; no ipc or tx interrupts on Q68
+
 * Serial port transmit interrupt
 txint
 *       moveq   #0,d3           no missing polls already set
@@ -99,6 +111,8 @@ inint
         jsr     ip_ipcr(pc)     read status and handle anything it says
         moveq   #pc.intri,d7    clear this interrupt
         bra.s   clearint
+
+        ENDGEN
 
 * Frame interrupt, 50Hz (or 60Hz USA)
 frint

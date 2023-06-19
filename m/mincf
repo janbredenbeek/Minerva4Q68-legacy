@@ -1,8 +1,3 @@
-* machine type, keyboard layout and user settable compilation settings
-* should go into userdefs
-
-	include 'win1_m_userdefs'
-
 * select HW conf and features
 
 ; compile for q68
@@ -11,10 +6,13 @@ q68	equ	1
 ; old style generic code
 realQL	equ	0
 
+ GENIF  q68 = 0
+Q68_RAMT	equ 0   * no limit on RAMTOP except for Q68
+ ENDGEN
 
  GENIF  q68 <> 0
-Q68_RAMT	equ	16384
 FULL_RAMTEST	equ	0
+Q68_RAMT	equ 16384	* limit RAMTOP to 16MB
 QL_NET		equ	1
 QL_MDV		equ	0	* 
 * Q68_HACK was required in some earlier versions of the firmware

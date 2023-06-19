@@ -8,7 +8,10 @@
 ; 
 ; Changelog:
 ;
-; 20210505 JB:
+; 20230619 JB:
+;   Interrupt handler now in external interrupt list as well as polled list
+;
+; 20210505 JB: (v1.2)
 ;
 ; Added scan for ROM header at end so another extension ROM image may be
 ; appended to the code (e.g. the SD-card driver), to reduce unused ROM space.
@@ -227,6 +230,11 @@ q68kbd_init:
 ;  link in polled task routine to handle keyboard
 
 ;;	lea	POLL_SERver(pc),a1 ; redundant code, use real address
+        lea     RDKEYX(pc),a1   ; address of external interrupt handler
+        lea     SV_LXINT(a3),a0
+        move.l  a1,4(a0)
+        moveq   #$1a,d0         ; MT.LXINT
+        trap    #1
         lea     RDKEYB(pc),a1   ; real address
 	lea	SV_LPOLL(a3),a0
 	move.l	a1,4(a0) 	; address of polled task
@@ -814,11 +822,13 @@ KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 
 ; --------------------------------------------------------------
 ;  Handle key event - response to a keyboard interrupt
-;  called from polled list
+;  called from polled list or external interrupt list
 
 rkeyreg REG	d3/a3-a4	; not really needed, but just in case...
 
-RDKEYB:
+RDKEYX: moveq   #0,d3           ; external interrupt entry;
+                                ; signal 'no polls missed'
+RDKEYB:                         ; polled interrupt entry
 	movem.l	rkeyreg,-(a7)
 
 ; read keyboard
