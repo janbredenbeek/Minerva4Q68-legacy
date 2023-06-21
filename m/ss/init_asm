@@ -130,6 +130,7 @@ s.intr  equ     pc.intre!pc.intrf!pc.intrt!pc.intri!pc.intrg clear interrupts
         
 ;	st	led			; LED on
 	sf	q68_ethi		; block CP2200 interrupts v. 1.03
+        sf      uart_status             ; disable serial interrupts
         sf      mouse_status            ; disable PS/2 mouse interrupts
 	clr.b	kbd_unlock		; no key may be got
 	st	(a3)     		; pc_intr; NOT CLEAR?????

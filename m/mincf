@@ -18,7 +18,7 @@ QL_MDV		equ	0	*
 * Q68_HACK was required in some earlier versions of the firmware
 Q68_HACK 	equ	0
 QL_SER		equ	0
-QL_IPC		equ	1	* QL keyboard & IPC - need for uqlx debugging
+QL_IPC		equ	0	* QL keyboard & IPC - need for uqlx debugging
 QL_IIC		equ 	0
 
 Q68_KEY		equ	0	* PS2 keyboard
