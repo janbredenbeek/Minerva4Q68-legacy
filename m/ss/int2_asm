@@ -51,7 +51,9 @@ ss_int2
         and.w   #$8000,d7
         move.l  d7,a6           do not assume there is only one screen
         movem.l regstwo,-(sp)
-
+        
+        GENIF   q68 = 0        ; no IPC, tx or gap interrupts on Q68
+        
         lea     pc_mctrl,a3
         assert  pc_mctrl,pc_intr-1
         move.w  (a3),d7         fetch the interrupt register to lsb (tigeftig)
@@ -59,9 +61,6 @@ ss_int2
         lsl.b   #4,d7           check for external or frame interrupts
         bcs.s   exint
         bmi.s   frint
-        
-        GENIF   q68 = 0        ; no IPC, tx or gap interrupts on Q68
-        
         moveq   #0,d3           no missing polls is common-ish
         assert  1<<2,pc.intrt,pc.intri<<1
         lsl.b   #2,d7           check for transmit, interface & gap interrupts
@@ -71,7 +70,18 @@ ss_int2
         bra.s   nonred          no bits set! used for non-redirected traps!
 
         ENDGEN
-* on Q68, continue into exint (currently it doesn't set the exint bit!)                        
+        
+        GENIF   q68 <> 0        ; this section for Q68 only
+        
+        moveq   #pc.intrf,d7
+        and.b   pc_intr,d7      ; only test frame interrupt bit!
+        bne.s   frint           ; it's a frame interrupt
+
+* on Q68, if not frame interrupt, it's an external interrupt so continue
+* (don't trust the exint bit, earlier Q68s don't set it!)
+
+        ENDGEN  
+
 exint
         moveq   #sv_i2lst-sv_i2lst,d4 set offset of int 2 list from int 2 list
         jsr     ss_tlist(pc)    do all external interrupt tasks

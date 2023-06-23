@@ -184,9 +184,9 @@ q68kbd_init:
 	moveq	#0,d0
 	trap	#1
 	cmpi.l	#'1.60',d2	; check QDOS version
-	blo.s	initerr		; must be Minerva
+	blo	initerr		; must be Minerva
 	cmpi.l	#'2.00',d2	; not SMSQ/E...
-	bhs.s	initerr
+	bhs	initerr
 	move.l	sv_chtop(a0),a4	; base of extended sysvars
 	lea	$b0(a4),a0	; linkage block of MDV driver         
 	moveq	#$23,d0		; MT.RDD
@@ -230,12 +230,23 @@ q68kbd_init:
 ;  link in polled task routine to handle keyboard
 
 ;;	lea	POLL_SERver(pc),a1 ; redundant code, use real address
-        lea     RDKEYX(pc),a1   ; address of external interrupt handler
+      	st      kbd_status              ; try  to use interrupts for keyboard
+        move.b  kbd_status,d0           ; can I use interrupts for keyboard?
+;;      btst    #7,d0
+;;      beq.s   no_intr
+        bpl.s   no_intr                 ;   ... no
+        lea     RDKEYX(pc),a1           ; address of external interrupt handler
         lea     SV_LXINT(a3),a0
         move.l  a1,4(a0)
-        moveq   #$1a,d0         ; MT.LXINT
+        moveq   #$1a,d0                 ; MT.LXINT
         trap    #1
-        lea     RDKEYB(pc),a1   ; real address
+        st      kbd_status              ; show that we use interrupts
+        st      kbd_unlock              ; keyboard may start up
+        suba.l  a0,a0
+        lea     intmsg,a1               ; EXPERIMENTAL
+        move.w  $d0,a2                  ; UT_MTEXT
+        jsr     (a2)
+no_intr lea     RDKEYB(pc),a1   ; real address
 	lea	SV_LPOLL(a3),a0
 	move.l	a1,4(a0) 	; address of polled task
 	moveq	#$1c,d0		;  MT.LPOLL
@@ -254,7 +265,7 @@ q68kbd_init:
         ENDGEN
 
 initerr	suba.l	a0,a0
-	lea	inerrms,a1
+        lea	inerrms,a1
 	move.w	$d0,a2
 	jsr	(a2)		; print error message
 
@@ -263,6 +274,7 @@ ROM_EXIT:
 	rts
 
 inerrms	string$	{'Incompatible QDOS Version!',10}
+intmsg  string$ {'* Using keyboard interrupt *',10}
 
 	ds.w	0
 

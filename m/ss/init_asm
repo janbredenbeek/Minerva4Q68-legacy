@@ -92,14 +92,12 @@ wipesv
         move.b  #pc.maskt!pc.maski,sv_pcint(a6)  set mask for no gap
    ENDGEN
 
-   GENIF Q68_HACK <> 1                   ;;;; original Minerva  
+   GENIF Q68_HACK <> 1                   ;;;; original Minerva
+
+      GENIF Q68 = 0                     ; don't do this on Q68
+
         lea     pc_intr,a3
         assert  pc_tctrl,pc_ipcwr-1
-        
-* JB-20180513: split move.w below into two instructions to avoid corruption
-*              of the Q68 real-time clock
-
-      GENIF Q68 = 0   ; don't do this on Q68
         
         move.w  #1,pc_tctrl-pc_intr(a3) set transmit mode and reset link
 
@@ -133,8 +131,8 @@ s.intr  equ     pc.intre!pc.intrf!pc.intrt!pc.intri!pc.intrg clear interrupts
         sf      uart_status             ; disable serial interrupts
         sf      mouse_status            ; disable PS/2 mouse interrupts
 	clr.b	kbd_unlock		; no key may be got
-	st	(a3)     		; pc_intr; NOT CLEAR?????
-	clr.b	pc_tctrl-pc_intr(a3)	; clear transmit control reg
+	st	pc_intr     		; pc_intr; NOT CLEAR?????
+	clr.b	pc_tctrl                ; clear transmit control reg
 
 	move.l	#q68_sramb+4,q68_sramb	; first free space in fast sram mem
       
