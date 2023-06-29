@@ -246,12 +246,20 @@ iiret
         beq.s   d1set
    ENDGEN
    GENIF FULL_RAMTEST <> 0 
-;        moveq   #8,d1           full reset, default tv mode single screen
-        move.l   #Q68_RAMT*1024+8,d1  limit RAMTOP for Q68, should be <=16M
+      GENIF Q68 = 0
+        moveq   #8,d1           full reset, default tv mode single screen
+      ENDGEN
+      GENIF Q68 <> 0
+        move.l   #Q68_RAMT*1024,d1  limit RAMTOP for Q68, should be <=16M
+      ENDGEN
    ENDGEN
-   GENIF FULL_RAMTEST <> 1     
-;        moveq   #8+1,d1         full reset, no ramtest, default tv mode single screen
-        move.l   #Q68_RAMT*1024+8+1,d1 limit RAMTOP for Q68, should be <=16M
+   GENIF FULL_RAMTEST <> 1
+      GENIF Q68 = 0   
+        moveq   #8+1,d1         full reset, no ramtest, default tv mode single screen
+      ENDGEN
+      GENIF Q68 <> 0
+        move.l   #Q68_RAMT*1024+1,d1 limit RAMTOP for Q68, should be <=16M
+      ENDGEN
    ENDGEN
 d1set
         move.l  d1,d5           set d5 for later and passing on to ss_init

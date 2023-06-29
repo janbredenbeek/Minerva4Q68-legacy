@@ -18,6 +18,9 @@
         include 'win1_m_inc_pc'
         include 'win1_m_inc_mt'
         include 'win1_m_inc_assert'
+        GENIF Q68 <> 0
+        include 'win1_m_inc_q68'
+        ENDGEN
 
 * Define sizes of table entries, etc
 jtb     equ     2       bits per job table entry
@@ -89,16 +92,17 @@ wipesv
         move.b  #pc.maskt!pc.maski,sv_pcint(a6)  set mask for no gap
    ENDGEN
 
-   GENIF Q68_HACK <> 1                   ;;;; original Minerva  
+   GENIF Q68_HACK <> 1                   ;;;; original Minerva
+
+      GENIF Q68 = 0                     ; don't do this on Q68
+
         lea     pc_intr,a3
         assert  pc_tctrl,pc_ipcwr-1
         
-* JB-20180513: split move.w below into two instructions to avoid corruption
-*              of the Q68 real-time clock
-;        move.w  #1,pc_tctrl-pc_intr(a3) set transmit mode and reset link
+        move.w  #1,pc_tctrl-pc_intr(a3) set transmit mode and reset link
 
-        clr.b   pc_tctrl-pc_intr(a3)    set transmit mode
-        move.b  #1,pc_ipcwr-pc_intr(a3) reset link
+;        clr.b   pc_tctrl-pc_intr(a3)    set transmit mode
+;        move.b  #1,pc_ipcwr-pc_intr(a3) reset link
 s.mctrl equ     1<<pc..writ!1<<pc..sclk init pc_mctrl (why the write bit? lwr)
 s.intr  equ     pc.intre!pc.intrf!pc.intrt!pc.intri!pc.intrg clear interrupts
         assert  pc_mctrl,pc_intr-1
@@ -114,10 +118,27 @@ s.intr  equ     pc.intre!pc.intrf!pc.intrt!pc.intri!pc.intrg clear interrupts
 * totally ignoring it. now we have Hermes, it's back in 'cos the code works,
 * signalling every eighth byte of serial input to keep us on our toes.
 
-      GENIF QL_MDV <> 0
-        jsr     md_desel(pc)            deselect microdrives
-      ENDGEN
-    ENDGEN
+        GENIF QL_MDV <> 0
+          jsr     md_desel(pc)            deselect microdrives
+        ENDGEN * QL_MDV <> 0 *
+      
+      ENDGEN * Q68 = 0 *
+        
+      GENIF Q68 <> 0          ; Q68 hardware initialisation (from SMSQ/E)
+        
+;	st	led			; LED on
+	sf	q68_ethi		; block CP2200 interrupts v. 1.03
+        sf      uart_status             ; disable serial interrupts
+        sf      mouse_status            ; disable PS/2 mouse interrupts
+	clr.b	kbd_unlock		; no key may be got
+	st	pc_intr     		; pc_intr; NOT CLEAR?????
+	clr.b	pc_tctrl                ; clear transmit control reg
+
+	move.l	#q68_sramb+4,q68_sramb	; first free space in fast sram mem
+      
+      ENDGEN * Q68 <> 0 * 
+        
+    ENDGEN * Q68_HACK <> 1 *
 
 * Now set up the resource tables and their pointers.
 * We only assume that the size of memory available is a multiple of 512 bytes.
@@ -145,7 +166,7 @@ set_jtab
         bsr.s   set_tab
 
         mulu    #cpj,d0         channels per job (but we will steal some...)
-        bsr.s   set_tab
+        bsr     set_tab
 
         subq.l  #1,d3           we must finish on a 512 byte boundary...
         or.w    #sbl-1,d3       ... so add a few channels to make certain

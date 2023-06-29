@@ -20,6 +20,9 @@ $RECYCLE.BIN/
 # Backup edited files
 *~
 
+# Notepad++ session files
+*.npp
+
 # UQLX directories
 .-UQLX-
 

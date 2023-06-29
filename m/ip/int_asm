@@ -13,6 +13,7 @@
         include 'win1_m_inc_pc'
         include 'win1_m_inc_ipcmd'
         include 'win1_m_inc_assert'
+        include 'win1_m_mincf'
 
         section ip_int
 
@@ -21,11 +22,13 @@
 * d3 -ip - count of missed poll interrupts
 
 ip_poll
+   GENIF QL_IPC <> 0            ; only if there is a real IPC!
         move    sr,-(sp)
         or.w    #$700,sr        disable interrupts
         bsr.s   ip_ipcr
         move    (sp)+,sr        n.b. rte is no good on a 68020
-        rts
+   ENDGEN
+        rts                     ; if no IPC, just return
 
 * This maintains the sound and wp flags, keyboard and serial port input.
 * It is called on either frame or interface interrupts.
@@ -33,6 +36,7 @@ ip_poll
 * a0 -  o- pc_ipcrd
 * a1 -  o- pc_ipcwr
 * d0-d2/d4-d7/a2-a3 destroyed.
+
 ip_ipcr
         moveq   #stat_cmd-32*3,d1 status command + read a byte (2 nibbles)
         bsr.s   ip_adcmd        set a0-a1, ask for status and receive status
@@ -232,11 +236,13 @@ qin
 * d0-d2/d4-d6/a0-a5 destroyed.
 
 ip_sched
+   GENIF QL_SER <> 0
         sf      d4              say this is from scheduler loop
         move    sr,-(sp)
         or.w    #$700,sr        disable interrupts
         bsr.s   ip_txqo         go send any rs232
         move    (sp)+,sr        n.b. rte is no good on a 68020
+   ENDGEN
         rts                     back to calling code
 
 qtest

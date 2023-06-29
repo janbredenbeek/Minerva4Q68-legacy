@@ -8,17 +8,129 @@ Q68_LED		equ	 $1C000
 KEY_CODE	equ	 $1C140
 **;;KEY_UNLOCK 	equ	 $1C003
 KEY_UNLOCK 	equ 	 $1C144
-MOUSE_CODE 	equ	 $1C006
-MOUSE_UNLOCK 	equ	 $1C007
-MOUSE_STATUS	equ	 $1C008
+**;;MOUSE_CODE 	equ	 $1C006
+;;MOUSE_UNLOCK 	equ	 $1C007
+;;MOUSE_STATUS	equ	 $1C008
 **;;PS2_STATUS 	equ	 $1C004
 **;;KEY_STATUS 	equ	 $1C004		* PS2_STATUS now renamed to KEY_STATUS
 KEY_STATUS 	equ	 $1C148
 
-UART_TXDATA 	equ	 $1C010
-UART_RXDATA 	equ	 $1C012
-UART_STATUS 	equ	 $1C014
-UART_PRESCALE   equ	 $1C016
+; UART_TXDATA 	equ	 $1C010
+; UART_RXDATA 	equ	 $1C012
+; UART_STATUS 	equ	 $1C014
+; UART_PRESCALE   equ	 $1C016
+
+** from SMSQ/E
+
+; ser comms keys
+uart_txdata	equ	$1c200
+uart_rxdata	equ	$1c204
+uart_status	equ	$1c208		; ser port status
+q68..txmpty	 equ	   0		  ; Read-only Transmit Buffer Empty
+q68..rxmpty	 equ	   1		  ; Read-only Receive Buffer Empty
+q68..rxfrerr	 equ	   2		  ; Read-only Receive Frame Error
+q68..rxovr	 equ	   3		  ; Read-only Receive Overrun Error
+q68..rxfull	 equ	   4		  ; Read-only Receive FIFO Full
+q68..txstat	 equ	   6		  ; bit set to enable transmit interrupt
+q68..rxstat	 equ	   7		  ; bit set to enable receive interrupt
+q68.rxand	 equ	   2		  ; value to AND status with to check for rx bit
+q68.txand	 equ	   1		  ; value to AND status with to check for rx bit
+uart_prescale	equ	$1c20c		; word
+q68_prty	equ	1		; no parity
+q68_hand	equ	0		; no handshake
+q68_prhd	equ	q68_prty<<8+q68_hand   ; parity and handshake combined
+q68_ser_link	equ	$17d08		; keep ptr to ser linkage block here
+
+; keyboard
+kbd_code	equ	$1c140		; scan code from keyboard
+kbd_unlock	equ	$1c144		; acknowledge key receipt
+k.ackn		  equ	  0		; bit to set to acknowledge key
+kbd_status	equ	$1c148		; ps2 key status register
+kbd.rcv 	equ	   0		; bit set when keyboard has key waiting
+kbd.isint	equ	   7		; bit set/to set if kbd is driven by interrupts
+kbd_dlay	equ	$17d0c		; config. delay for kbd if no interrupt
+
+
+; mouse
+mouse_status	equ	$1c168		; mouse status register
+m.rcv		equ	  0		; this bit is set if a byte can be read
+m.type		equ	  4		; bit set if mouse has mousewheel
+m.int		equ	  7		; set this to start the mouse interrupts
+					; (bits 1-3 ignored by me)
+mouse_code	equ	$1c160		; byte received from mouse - as soon as
+					; that is read, mouse_status is modified
+					; (bit 0 becomes 0)
+mouse_unlock	equ	$1c164		; any write to this means I can receive f
+					; a further byte from mouse
+
+;  // PS/2 Mouse status register
+;  // Bit 0: Read-only Mousecode received
+;  // Bit 1: Read/Write PIO Data line (0=pull low, 1=open)
+;  // Bit 2: Read/Write PIO Clock line (0=pull low, 1=open)
+;  // Bit 3: Read/Write 0=Default mode 1=PIO mode
+;  // Bit 4: Read/Write Driver info (0=Standard Mouse, 1=Intellimouse)
+;  // Bit 7: Read/Write Mouse interrupt enable
+
+
+; display
+q68_screen	equ $FE800000		; base of Screen
+q68.screen	equ 1024*768*2		; max screen size used
+q68_dmode	equ $ff000018		; display mode register : display type
+; !!!!
+;	if you change the order of these, also change the table in
+;	dev8_iod_con2_q68_procv_asm
+; !!!!
+q68.d8		equ    0		  ; QL mode 8
+q68.d4		equ    1		  ; QL mode 4
+q68.ds		equ    2		  ; Small (512*256, 16 bit colours)
+q68.dl		equ    3		  ; Large (1024*512, 16 bit colours)
+q68.dl4 	equ    4		  ; Large QL mode 4 screen (1024*768)
+q68.aur8	equ    5		  ; aurora 8 bits (1024*768)
+q68.md		equ    6		  ; Medium (512*384, 16 bit colours)
+q68.hi		equ    7		  ; very high (1024*768,16 bit)
+q68.dmax	equ    q68.hi		  ; highest screen mode nbr
+
+; misc keys
+q68_sramb	equ	$19000		; base of (fast) static ram: this con-
+					; tains a ptr to the next free space in
+					; the static ram
+q68_sramt	equ	$1c000		; top of (fast) static ram
+led		equ	$1c100		; st to turn led on, clr to turn it off
+q68_dcfg	equ	$0e		; where in cgf info drv-> card table is
+i2c_scl 	equ	$1c00c		; ?
+i2c_sda 	equ	$1c00e		; ?
+q68_card2	equ	$c		; card init item in config block
+;q68_msecf	 equ	 $d		 ; config item for mouse in config block
+
+q68_slug	equ	$1c028		; hardware slug 0 (no slug) to 255 (max)
+					; (nb 0-5 are the same)
+q68_reset	equ	$1c024
+q68_ethi	equ	$1c040		; Ethernet interrupt ON switch
+q68_timer	equ	$1c060
+q68_1sec	equ	40000000	; 40 Mhz timer
+q68_tick	equ	4		; 1 "tick" = 1/10th of a microsecond
+q68_tmrmul	equ	4000		; 1/10 of a milliseond
+
+; network related variables
+q68_netvec	equ	$17d10		; net vectors pointer
+q68_kradd	equ	$17d14		; address of keyboard read routine
+q68_klnk	equ	$17d18		; kbd linkage area
+q68_test	equ	$17d1c		; 4 bytes for whatever you want
+
+
+; debug
+;***** if these are changed, also change in smsq68mulator (monitor & mc68000)
+q68_jkbd	equ	$17d00		; ** debug smsq68mulator keybrd input **
+q68_jflg	equ	$17d04		; ** debug smsq68mulator flag **
+; debug		equ	0		; if 1 debug code is included
+		      ; $17d08	used for serial port (see above)
+		      ; $17d0c	used for keyboard (see above)
+		      ;
+		      ; $17d10	- $17d1c  QL Net
+q68_v2		equ	$17d20		; (byte) if set : hardware v.2
+
+; q68 specific config
+q68.cfgkb	 equ	 $20		 ; position in config block of kbd delay
+
 
   ENDGEN
-

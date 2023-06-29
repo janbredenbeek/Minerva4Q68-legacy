@@ -20,19 +20,19 @@ CPU	equ	1	* CPU fixed to 68000
 SDEBUG  equ     1
 
 
-; hw specific for the q68
+; hw specific for the q68 (JB: OBSOLETE, see q68 include file)
 
-Q68_LED		equ	 $1C000
-KEY_CODE 	equ	 $1C002
-KEY_UNLOCK 	equ	 $1C004
-MOUSE_CODE 	equ	 $1C006
-MOUSE_UNLOCK 	equ	 $1C008
-PS2_STATUS 	equ	 $1C00A
+;;Q68_LED		equ	 $1C000
+;;KEY_CODE 	equ	 $1C002
+;;KEY_UNLOCK 	equ	 $1C004
+;;MOUSE_CODE 	equ	 $1C006
+;;MOUSE_UNLOCK 	equ	 $1C008
+;;PS2_STATUS 	equ	 $1C00A
 
-UART_TXDATA 	equ	 $1C010
-UART_RXDATA 	equ	 $1C012
-UART_STATUS 	equ	 $1C014
-UART_PRESCALE   equ	 $1C016
+;;UART_TXDATA 	equ	 $1C010
+;;UART_RXDATA 	equ	 $1C012
+;;UART_STATUS 	equ	 $1C014
+;;UART_PRESCALE   equ	 $1C016
 
 ;* phased out
 ;*Q68_FRQ	equ	$18080	* generate frame irq request
