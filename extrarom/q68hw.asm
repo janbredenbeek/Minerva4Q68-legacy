@@ -8,6 +8,12 @@
 ; 
 ; Changelog:
 ;
+; 20230628 JB (v1.3):
+;   One version now for all keyboard languages, KBTABLE command added to switch
+;
+; 20230623 JB:
+;   Added more initialisation code from SMSQ/E for handling keyboard interrupts
+;
 ; 20230619 JB:
 ;   Interrupt handler now in external interrupt list as well as polled list
 ;
@@ -32,7 +38,7 @@
 
 	section q68_q68hw
 
-version	setstr	1.2
+version	setstr	1.3
 
 DEBUG	equ	0		; set to 1 to display variables and result code
 
@@ -75,7 +81,7 @@ BOOTDEV equ     0
 
 romh:
 	dc.l	$4afb0001       ; ROM marker
-	dc.w	0		; no procs to declare
+	dc.w	procs-romh	; no procs to declare
 	dc.w	rom_init-romh
 	string$	{'Q68 extension ROM v[version]',10}
          ds.w     0
@@ -112,8 +118,16 @@ bye      move.l   (sp)+,a3          ; restore ROM pointer
 				; (long) address of POLLed int routine
 
 
-
 VAR.KEYtab   EQU	$3C	; (long) ptr to ASCII table
+
+* the following word offsets are relative pointers to the above table
+* add these offsets with ctrl, shift, ctrl/shift and graphics
+* e.g. add.w ktab_of_sh(a0),a0 to get the shifted table
+
+ktab_of_ct   equ        -8      ; offset of ctrl+key table
+ktab_of_sh   equ        -6      ; offset of shift+key table
+ktab_of_cs   equ        -4      ; offset of ctrl+shift+key table
+ktab_of_gr   equ        -2      ; offset of graphics+key table
 
 VAR.IPClnk   EQU	$40	; link to next IPCOM front-end routine
 VAR.IPCemu   EQU	$44	; pointer to IPC keyrow emulation routine
@@ -196,9 +210,12 @@ q68kbd_init:
 ;  set ASCII table and clear actual key.
 ;; most code redundant as MT.ALCHP has cleared out area already!
 
-	lea	LNG_KTAB(pc),a0
-	move.l	a0,VAR.KEYtab(a3)
-
+	move.w  #q68_keyc,d1    ; set from userdefs
+        bsr     set_kb          ; set keyboard language
+        beq.s   init_2          ; OK?
+        lea	L01_KTAB(pc),a0 ; No, default to US
+        move.l	a0,VAR.KEYtab(a3)
+init_2:
 	clr.b	VAR.KEYdwc(a3)	; clear held down key count
 
 	lea	VAR.KEYraw(a3),a0
@@ -277,6 +294,76 @@ inerrms	string$	{'Incompatible QDOS Version!',10}
 intmsg  string$ {'* Using keyboard interrupt *',10}
 
 	ds.w	0
+        
+************************************
+* Procedure and function definitions
+
+procs   dc.w    1               ; one procedure
+        dc.w    kbtable-*
+        dc.b    7,'KBTABLE'
+        dc.w    0               ; end of procs
+        dc.w    0,0             ; no functions
+
+* subroutine to get address of linkage block from BASIC
+* Entry: none
+* Exit: D0 error code (0 OK, err.nf block not found)
+*       A3 points to linkage block
+
+get_lb:
+        movem.l d1-d2/a0-a1,-(sp)  ; save these registers
+        moveq   #mt.inf,d0
+        trap    #1
+        lea     SV_PLIST(a0),a0 ; pointer to polled task list
+        lea     RDKEYB(pc),a1   ; address of our polled task
+glb_loop:
+        tst.l   (a0)            ; end of list reached?
+        beq.s   glb_notf        ; yes
+        move.l  (a0),a0         ; else, get next entry
+        cmpa.l  4(a0),a1        ; is this the entry we're looking for?
+        bne.s   glb_loop        ; no, loop back
+        lea     -SV_LPOLL(a0),a3 ; point to start of linkage block
+        moveq   #0,d0           ; success
+        bra.s   glb_ret
+glb_notf:
+        moveq   #err.nf,d0      ; oops... block not found!
+glb_ret movem.l (sp)+,d1-d2/a0-a1
+        rts
+
+* KBTABLE command sets the keyboard table
+* Usage: KBTABLE <country code>
+
+kbtable:
+        move.w  ca_gtint,a2     ; get integer parameter
+        jsr     (a2)
+        bne.s   kb_exit         ; if error
+        subq.w  #1,d3
+        bne.s   kb_bp           ; must have 1 parameter
+        move.w  (a6,a1.l),d1    ; get it
+        addq.l  #2,bv_rip(a6)   ; clean up math stack
+        bsr     get_lb          ; get pointer to linkage block
+        bne.s   kb_exit         ; oops...
+
+set_kb:                         ; also used from init!
+        lea     LNG_MODULE(pc),a1 ; pointer to first language table
+kb_loop:
+        cmp.w   4(a1),d1        ; is this the country code we're looking for?
+        beq.s   kb_set          ; yes, set pointer
+        addq.l  #6,a1           ; point to pointer to next table
+        tst.w   (a1)            ; end reached?
+        beq.s   kb_bp           ; yes, throw error
+        adda.w  (a1),a1         ; point to next entry
+        bra     kb_loop         ; loop
+kb_set: 
+        addq.l  #8,a1           ; point to pointer to keyboard table header
+        adda.w  (a1),a1         ; (relative)
+        addq.l  #2,a1           ; skip country code (should check this?)
+        adda.w  (a1),a1         ; point to first keyboard table
+        move.l  a1,VAR.keytab(a3) ; set pointer in our linkage block
+        moveq   #0,d0           ; success
+kb_exit rts
+
+kb_bp   moveq   #err.bp,d0
+        rts
 
 *****************************************************
 * BOOT driver for debugging purposes *
@@ -568,23 +655,38 @@ KEY_exit:
 *
 *  conversion tables for translating rawkeycode to ASCII
 
-	GENIF	q68_keyc = 1
+* As of v1.3, there is now a single ROM version for all three languages.
+* The tables have been extended so that they now contain the offsets from the
+* base (unshifted) table to the tables for CTRL, Shift, CTRL-Shift and Graphics
+* respectively (between the keyboard table header and the base table).
+* The keyboard language may be set using the set_kb subroutine (entry with D1
+* holding the country code, currently 1, 44 or 49)
 
 LNG_MODULE:
 
  DC.W 1		; keyboard table
  DC.W 0		; no group
  DC.W 1 	; language number (US)
- DC.W 0		; relative ptr to next module or 0
- DC.W LNG_KBD-*	; relative ptr to keyboard table
+ DC.W L44_MOD-*	; relative ptr to next module or 0
+ DC.W L01_KBD-*	; relative ptr to keyboard table
 
-LNG_KBD:
+L01_KBD:
 
  DC.W 1 	; language (US)
- DC.W LNG_KTAB-*	; relative ptr to key table
+ DC.W L01_KTAB-*	; relative ptr to key table
  DC.W 0		; relative ptr to non-spacing char table
 
-LNG_KTAB:
+* JB: Added offsets from base table to CT/SH/SC/GR tables
+* (they may not be constants!). This uses the space between the header and the
+* first table, but should remain compatible with the old format since the
+* header contains a relative pointer to the first table...
+
+ DC.W L01_KTAB_CT-L01_KTAB      ; offset to CTRL key table
+ DC.W L01_KTAB_SH-L01_KTAB      ; offset to SHIFT key table
+ DC.W L01_KTAB_SC-L01_KTAB      ; offset to CTRL/SHIFT key table
+ DC.W L01_KTAB_GR-L01_KTAB      ; offset to Graphics key table
+
+L01_KTAB:
  DC.B 0,246,0,248,240,232,236,0,0,250,242,234,244,9,159,0
  DC.B 0,0,0,0,0,'q','1',0,0,0,'z','s','a','w','2',0
  DC.B 0,'c','x','d','e','4','3',0,0,' ','v','f','t','r','5',0
@@ -595,7 +697,7 @@ LNG_KTAB:
  DC.B 0,202,216,0,200,208,27,0,0,'+',220,'-','*',212,249,0
  DC.B 0,0,0,238
 
-LNG_KTAB_CT:
+L01_KTAB_CT:
  DC.B 0,247,0,249,241,233,237,0,0,251,243,235,245,0,0,0
  DC.B 0,0,0,0,0,17,145,0,0,0,26,19,1,23,146,0
  DC.B 0,3,24,4,5,148,147,0,0,32,22,6,20,18,149,0
@@ -606,7 +708,7 @@ LNG_KTAB_CT:
  DC.B 0,202,218,0,202,210,128,0,0,139,222,141,138,214,0,0
  DC.B 0,0,0,239
 
-LNG_KTAB_SH:
+L01_KTAB_SH:
  DC.B 0,0,0,250,242,234,238,0,0,0,0,0,246,253,126,0
  DC.B 0,0,0,0,0,'Q','!',0,0,0,'Z','S','A','W','@',0
  DC.B 0,'C','X','D','E','$',35,0,0,252,'V','F','T','R','%',0
@@ -617,7 +719,7 @@ LNG_KTAB_SH:
  DC.B '0','.','2','5','6','8',127,0,0,'+','3','-','*','9',250,0
  DC.B 0,0,0,0
 
-LNG_KTAB_SC:
+L01_KTAB_SC:
  DC.B 0,0,0,251,243,235,239,0,0,0,0,0,247,0,0,0
  DC.B 0,0,0,0,0,177,129,0,0,0,186,179,161,183,130,0
  DC.B 0,163,184,164,165,132,0,0,0,32,182,166,180,178,133,0
@@ -628,7 +730,7 @@ LNG_KTAB_SC:
  DC.B 144,142,146,149,150,152,31,0,0,139,147,141,138,153,0,0
  DC.B 0,0,0,0
 
-LNG_KTAB_GR:
+L01_KTAB_GR:
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -639,13 +741,13 @@ LNG_KTAB_GR:
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0
 
-LNG_NSTAB:
+L01_NSTAB:
 
-KTB_OFFS_CT EQU	(LNG_KTAB_CT-LNG_KTAB)
-KTB_OFFS_SH EQU	(LNG_KTAB_SH-LNG_KTAB)
-KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
+; KTB_OFFS_CT EQU	(LNG_KTAB_CT-LNG_KTAB)
+; KTB_OFFS_SH EQU	(LNG_KTAB_SH-LNG_KTAB)
+; KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 
-	ENDGEN
+;       ENDGEN
 
 *******************************************************************
 *
@@ -659,23 +761,28 @@ KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 *
 *  conversion tables for translating rawkeycode to ASCII
 
-	GENIF	q68_keyc = 44
+;       GENIF	q68_keyc = 44
 
-LNG_MODULE:
+L44_MOD:
 
  DC.W 1		; keyboard table
  DC.W 0		; no group
  DC.W 44 	; language number (UK)
- DC.W 0		; relative ptr to next module or 0
- DC.W LNG_KBD-*	; relative ptr to keyboard table
+ DC.W L49_MOD-*	; relative ptr to next module or 0
+ DC.W L44_KBD-*	; relative ptr to keyboard table
 
-LNG_KBD:
+L44_KBD:
 
  DC.W 44 	; language (UK)
- DC.W LNG_KTAB-*	; relative ptr to key table
+ DC.W L44_KTAB-*	; relative ptr to key table
  DC.W 0		; relative ptr to non-spacing char table
 
-LNG_KTAB:
+ DC.W L44_KTAB_CT-L44_KTAB      ; offset to CTRL key table
+ DC.W L44_KTAB_SH-L44_KTAB      ; offset to SHIFT key table
+ DC.W L44_KTAB_SC-L44_KTAB      ; offset to CTRL/SHIFT key table
+ DC.W L44_KTAB_GR-L44_KTAB      ; offset to Graphics key table
+
+L44_KTAB:
  DC.B 0,246,0,248,240,232,236,0,0,250,242,234,244,9,159,0
  DC.B 0,0,0,0,0,'q','1',0,0,0,'z','s','a','w','2',0
  DC.B 0,'c','x','d','e','4','3',0,0,' ','v','f','t','r','5',0
@@ -686,7 +793,7 @@ LNG_KTAB:
  DC.B 0,202,216,0,200,208,27,0,0,'+',220,'-','*',212,249,0
  DC.B 0,0,0,238
 
-LNG_KTAB_CT:
+L44_KTAB_CT:
  DC.B 0,247,0,249,241,233,237,0,0,251,243,235,245,0,0,0
  DC.B 0,0,0,0,0,17,145,0,0,0,26,19,1,23,146,0
  DC.B 0,3,24,4,5,148,147,0,0,32,22,6,20,18,149,0
@@ -697,7 +804,7 @@ LNG_KTAB_CT:
  DC.B 0,202,218,0,202,210,128,0,0,139,222,141,138,214,0,0
  DC.B 0,0,0,239
 
-LNG_KTAB_SH:
+L44_KTAB_SH:
  DC.B 0,0,0,250,242,234,238,0,0,0,0,0,246,253,0,0
  DC.B 0,0,0,0,0,'Q','!',0,0,0,'Z','S','A','W',34,0
  DC.B 0,'C','X','D','E','$',96,0,0,252,'V','F','T','R','%',0
@@ -708,7 +815,7 @@ LNG_KTAB_SH:
  DC.B '0','.','2','5','6','8',127,0,0,'+','3','-','*','9',250,0
  DC.B 0,0,0,0
 
-LNG_KTAB_SC:
+L44_KTAB_SC:
  DC.B 0,0,0,251,243,235,239,0,0,0,0,0,247,0,0,0
  DC.B 0,0,0,0,0,177,129,0,0,0,186,179,161,183,130,0
  DC.B 0,163,184,164,165,132,0,0,0,32,182,166,180,178,133,0
@@ -719,7 +826,7 @@ LNG_KTAB_SC:
  DC.B 144,142,146,149,150,152,31,0,0,139,147,141,138,153,0,0
  DC.B 0,0,0,0
 
-LNG_KTAB_GR:
+L44_KTAB_GR:
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -730,13 +837,13 @@ LNG_KTAB_GR:
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0
 
-LNG_NSTAB:
+; LNG_NSTAB:
 
-KTB_OFFS_CT EQU	(LNG_KTAB_CT-LNG_KTAB)
-KTB_OFFS_SH EQU	(LNG_KTAB_SH-LNG_KTAB)
-KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
+; KTB_OFFS_CT EQU	(LNG_KTAB_CT-LNG_KTAB)
+; KTB_OFFS_SH EQU	(LNG_KTAB_SH-LNG_KTAB)
+; KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 
-	ENDGEN
+;       ENDGEN
 
 ******************************************************************
 * VERBATIM from CLSC/SRC/ISA/804Xd_asm
@@ -751,23 +858,28 @@ KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 *
 *  conversion tables for translating keycode to ASCII
 
-	GENIF	q68_keyc = 49
+;       GENIF	q68_keyc = 49
 
-LNG_MODULE:
+L49_MOD:
 
  DC.W 1		; keyboard table
  DC.W 0		; no group
  DC.W 49 	; language number (german)
  DC.W 0		; relative ptr to next module or 0
- DC.W LNG_KBD-*	; relative ptr to keyboard table
+ DC.W L49_KBD-*	; relative ptr to keyboard table
 
-LNG_KBD:
+L49_KBD:
 
  DC.W 49 	; language (german)
- DC.W LNG_KTAB-*	; relative ptr to key table
+ DC.W L49_KTAB-*	; relative ptr to key table
  DC.W 0		; relative ptr to non-spacing char table
 
-LNG_KTAB:
+ DC.W L49_KTAB_CT-L49_KTAB      ; offset to CTRL key table
+ DC.W L49_KTAB_SH-L49_KTAB      ; offset to SHIFT key table
+ DC.W L49_KTAB_SC-L49_KTAB      ; offset to CTRL/SHIFT key table
+ DC.W L49_KTAB_GR-L49_KTAB      ; offset to Graphics key table
+
+L49_KTAB:
  DC.B 0,246,0,248,240,232,236,0,0,250,242,234,244,9,94,0
  DC.B 0,0,0,0,0,'q','1',0,0,0,'y','s','a','w','2',0
  DC.B 0,'c','x','d','e','4','3',0,0,' ','v','f','t','r','5',0
@@ -778,7 +890,7 @@ LNG_KTAB:
  DC.B 0,202,216,0,200,208,27,0,0,'+',220,'-','*',212,249,0
  DC.B 0,0,0,238
 
-LNG_KTAB_CT:
+L49_KTAB_CT:
  DC.B 0,247,0,249,241,233,237,0,0,251,243,235,245,0,0,0
  DC.B 0,0,0,0,0,17,145,0,0,0,25,19,1,23,146,0
  DC.B 0,3,24,4,5,148,147,0,0,32,22,6,20,18,149,0
@@ -789,7 +901,7 @@ LNG_KTAB_CT:
  DC.B 0,202,218,0,202,210,128,0,0,139,222,141,138,214,0,0
  DC.B 0,0,0,239
 
-LNG_KTAB_SH:
+L49_KTAB_SH:
  DC.B 0,0,0,250,242,234,238,0,0,0,0,0,246,253,186,0
  DC.B 0,0,0,0,0,'Q','!',0,0,0,'Y','S','A','W',34,0
  DC.B 0,'C','X','D','E','$',182,0,0,252,'V','F','T','R','%',0
@@ -800,7 +912,7 @@ LNG_KTAB_SH:
  DC.B '0','.','2','5','6','8',127,0,0,'+','3','-','*','9',250,0
  DC.B 0,0,0,0
 
-LNG_KTAB_SC:
+L49_KTAB_SC:
  DC.B 0,0,0,251,243,235,239,0,0,0,0,0,247,0,0,0
  DC.B 0,0,0,0,0,177,129,0,0,0,185,179,161,183,130,0
  DC.B 0,163,184,164,165,132,0,0,0,32,96,166,180,178,133,0
@@ -811,7 +923,7 @@ LNG_KTAB_SC:
  DC.B 144,142,146,149,150,152,31,0,0,139,147,141,138,153,0,0
  DC.B 0,0,0,0
 
-LNG_KTAB_GR:
+L49_KTAB_GR:
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0,0,'@',0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -822,13 +934,13 @@ LNG_KTAB_GR:
  DC.B 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
  DC.B 0,0,0,0
 
-LNG_NSTAB:
+; LNG_NSTAB:
 
-KTB_OFFS_CT EQU	(LNG_KTAB_CT-LNG_KTAB)
-KTB_OFFS_SH EQU	(LNG_KTAB_SH-LNG_KTAB)
-KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
+; KTB_OFFS_CT EQU	(LNG_KTAB_CT-LNG_KTAB)
+; KTB_OFFS_SH EQU	(LNG_KTAB_SH-LNG_KTAB)
+; KTB_OFFS_GR EQU	(LNG_KTAB_GR-LNG_KTAB)
 
-	ENDGEN
+;       ENDGEN
 
 ******************************************************************
 
@@ -1087,7 +1199,8 @@ KEY_conv:
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
 	beq.s	KEY_convN	; exit if not alpha key
 ;; JB: should never occur, already tested by calling code
-	cmpi.l	#KTB_OFFS_CT,d0
+        move.l  VAR.KEYtab(a3),a1 ; base of keyboard table
+	cmp.w   ktab_of_ct(a1),d0
 	bcc.s	KEY_convN	; exit if out-of-bounds
 
 	tst.b	VAR.RLSflg(a3)
@@ -1105,8 +1218,8 @@ KC_noalt:
 	beq.s	KC_noshf
 	addq.b	#2,d1		; bit 1 = CTRL/SHIFT set
 KC_noshf:
-	move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
-	move.b	0(a0,d0.w),d0	; get "unshifted" ASCII value
+;       move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
+	move.b	0(a1,d0.w),d0	; get "unshifted" ASCII value
 	cmpi.b	#' ',d0		; SPACE?
 	beq.s	KC_spexit	; Yes, do special exit
 	subi.b	#9,d0		; TAB?
@@ -1131,64 +1244,51 @@ KEY_convN:
 ; convert to ASCII
 
 KEY_conv0:
+        move.l  a1,a0           ; default table
 	tst.b	VAR.GFXflg(a3)	; try gfx
 	beq.s	KEY_conv1
-
-	move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
-	lea	KTB_OFFS_GR(a0),a0 ; adjust for ALT-Gr chars
-
+	adda.w	ktab_of_gr(a1),a0 ; adjust for ALT-Gr chars
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
 	move.b	0(a0,d0.w),d1	; convert to ASCII value
 	bne.s	KEY_conv6	; branch if an OK char
-
 	clr.b	VAR.GFXflg(a3)
 
-KEY_conv1
-	move.l	VAR.KEYtab(a3),a0 ; KEYtab defaults
-
+KEY_conv1:
+        move.l  a1,a0           ; default table
 	tst.b	VAR.CTLflg(a3)	; try control
 	beq.s	KEY_conv2
-
-	lea	KTB_OFFS_CT(a0),a0 ; adjust for control chars
+	adda.w	ktab_of_ct(a1),a0 ; adjust for control chars
 
 KEY_conv2:
 	tst.b	VAR.MODflg(a3)	; test the weird flag
 	beq.s	KEY_conv2a	; nope...
-
 	cmpi.l	#AWKCOD,d0	; the weird awkward key?
 	bne.s	KEY_conv5	; nope... ignore shift & numlock
-
 	move.l	#AWKASC,d0	; be specific with awkward key
 	bra.s	KEY_conv8
 
 KEY_conv2a:
 	move.b	VAR.ACTkey(a3),d0 ; get keycode key
-	lea	KTB_OFFS_SH(a0),a0 ; pre-adjust for shifted chars
+	adda.w  ktab_of_sh(a1),a0 ; pre-adjust for shifted chars
 	move.b	0(a0,d0.w),d0	; convert to ASCII value
-
 	tst.b	VAR.SHFflg(a3)  ; SHIFT?
 	sne.b	d1              ; set D1
-
 	cmpi.b	#'.',d0
 	beq.s	KEY_conv3	; numeric
-
 	cmpi.b	#'0',d0
 	blt.s	KEY_conv4	; not numeric
-
 	cmpi.b	#'9',d0
 	bgt.s	KEY_conv4	; not numeric
 
 KEY_conv3:
 	tst.b	VAR.NLKflg(a3)	; try numlock
 	beq.s	KEY_conv4	; nope...
-
 	not.b	d1
 
 KEY_conv4:
 	tst.b	d1
 	bne.s	KEY_conv5
-
-	suba.l	#KTB_OFFS_SH,a0	; unadjust for shifted chars
+	suba.w	ktab_of_sh(a1),a0 ; unadjust for shifted chars
 
 KEY_conv5:
 	move.b	VAR.ACTkey(a3),d1 ; get keycode key
@@ -1197,23 +1297,18 @@ KEY_conv5:
 KEY_conv6:
 	tst.b	SV_CAPS(a6)	; check for CAPS lock
 	beq.s	KEY_conv8
-
 	cmp.b	#'a',d1		; check for lower case
 	blo.s	KEY_conv7
-
 	cmp.b	#'z',d1
 	bhi.s	KEY_conv7
-
 	sub.b	#32,d1		; change to upper case
 	bra.s	KEY_conv8
 
 KEY_conv7:
 	cmp.b	#128,d1		; check lower case accented
 	blo.s	KEY_conv8	;; should be BLO/BCS???
-
 	cmp.b	#139,d1
 	bhi.s	KEY_conv8	;; should be BHI???
-
 	add.b	#32,d1		; change to upper case
 
 KEY_conv8:
@@ -1222,7 +1317,6 @@ KEY_conv8:
 	beq.s	KEY_convA	; no ALT
 	cmpi.b	#$C0,d1		; test for cursor/caps keys
 	blo.s	KEY_conv9	; 
-
 	cmpi.b	#$e8,d1		; test for cursor/caps keys
 	bhs.s	KEY_conv9
 	ori.b	#1,d1		; ALT on cursor keys means bit 0 set

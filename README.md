@@ -14,9 +14,11 @@ The current Minerva build is based on v1.98, with a few modifications to run suc
 INSTALLATION:
 -------------
 
-The appropriate ROM image Q68_??ROM.SYS should be renamed to Q68_ROM.SYS and copied to the root directory of a FAT32-formatted SDHC card. The Q68 will then load this image and boot into the Minerva operating system.
+The Q68_ROM.SYS file should copied to the root directory of a FAT32-formatted SDHC card. The Q68 will then load this image and boot into the Minerva operating system.
 
-The 80K ROM images contain the Minerva operating system, a keyboard driver specific for US, UK and DE (German) keyboard layouts, and a SDHC card driver. Note that in the current build the MDV driver is still present but disabled since there is no MDV hardware in the Q68.
+The 80K ROM images contain the Minerva operating system, a keyboard driver for US, UK and DE (German) keyboard layouts, and a SDHC card driver. Note that in the current build the MDV driver is still present but disabled since there is no MDV hardware in the Q68.
+
+The keyboard language may be set using the KBTABLE command, which has the telephone country code as parameter. Currently, the supported codes are US (1), UK (44), and German (49). The default is US; you may change this by editing the userdef file in the extrarom directory and rebuilding it.
 
 By default, the devices win1_ and win2_ will be mapped to container files QLWA.WIN on SDHC drives 1 and 2 respectively. If present, the devices qub1_ and qub2_ will be mapped to Qubide container files QL_BDI.BIN on SDHC drives 1 and 2 respectively. This can be changed by configuring the Q68_ROM.SYS file (see below).
 
@@ -43,7 +45,7 @@ SBYTES Min4Q68_rext,base,size
 CONFIGURATION:
 --------------
 
-The devices win1_ to win8_ and qub1_ to qub8_ can be configured to be mapped to any \*.WIN (QLWA format) or \*.BIN (Qubide format) container file by using the CONFIG or MENUCONFIG program on the Q68_ROM.SYS file. You MUST use a V2 capable version of these programs. Suitable CONFIG programs can be found on http://www.dilwyn.me.uk/config/index.html.
+The devices win1_ to win8_ and qub1_ to qub8_ can be configured to be mapped to any \*.WIN (QLWA format) or \*.BIN (Qubide format) container file by using the CONFIG or MENUCONFIG program on the Q68_ROM.SYS file. You MUST use a V2 capable version of these programs. Suitable CONFIG programs can be found on https://dilwyn.qlforum.co.uk/config/index.html.
 
 
 Current issues:
@@ -51,7 +53,8 @@ Current issues:
 
 - The SD-card driver requires a CARD_INIT 2 command to use the SD card in slot 2; other SD-card related commands are presently not implemented.
 - The maximum amount of RAM supported is limited to 16MB, as the slave block system's structure currently prevents supporting more RAM.
-- The serial port and network port of the Q68 are not supported.
+- The serial port and mouse interface of the Q68 are currently not supported. The QLNET and Ethernet interfaces are supported using external utilities, see https://dilwyn.qlforum.co.uk/q68/index.html for more information.
+- Some users of Q68 boards with newer firmware (v1.05) have reported problems with the keyboard and the Q68 'freezing' after the F1/F2 prompt. These are currently under investigation. Please use the Issues section to report any problems, stating as much information as possible (including the firmware version, which can be read from the Q68's initial boot screen; temporary removal of the SD card will give you enough time to read it).
 - Building instructions need to be added (work in progress).
 
 
@@ -65,7 +68,8 @@ Contributors:
 Version history:
 ----------------
 
-- May 2018: support for US and UK keyboards, RAM test limited to 16MB to avoid problems with slave block system
-- April 2019: improved keyboard driver, now only compatible with Minerva
-- May 2019: Patch included for LBYTES bug over network (contributed by Marcel Kilgus)
+- 29 June 2023: v1.3 released. Support for external interrupts on all Q68 firmware versions, support for keyboard interrupt on newer firmware versions, one language version now for all three keyboard layouts.
 - June 2021: Combined keyboard and SD-card drivers in one single ROM image, leaving 16K available for other extension ROMs. Patched SD-card driver for stale TRAP #14 instruction left over (from debugging?)
+- May 2019: Patch included for LBYTES bug over network (contributed by Marcel Kilgus)
+- April 2019: improved keyboard driver, now only compatible with Minerva
+- May 2018: support for US and UK keyboards, RAM test limited to 16MB to avoid problems with slave block system

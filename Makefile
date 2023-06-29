@@ -1,12 +1,5 @@
 ### Makefile for Minerva4Q68 ###
 
-# Uncomment the line which applies to your keyboard layout
-
-KBLANG = US
-
-# KBLANG=UK
-# KBLANG=DE
-
 all:    xrom
 	ruby $(HOME)/ruby/mmake
 	echo y | qm -r 4096 -f uqlxrc -s "lrun win1_BOOT"
@@ -56,7 +49,7 @@ origx:  xrom
 xrom:
 	cp -u m/inc/q68 extrarom
 	make -C extrarom
-	cp extrarom/q68hw$(KBLANG)_rom q68hw_rom
+	cp extrarom/q68hw_rom q68hw_rom
 
 clean:
 	rm -f m/*/*_rel
