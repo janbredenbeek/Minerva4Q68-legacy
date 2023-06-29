@@ -1,0 +1,22 @@
+Minerva4Q68 Building Instructions
+=================================
+
+What you will need
+------------------
+
+- A Linux system. If you prefer Windows and don't want to install a full-blown Linux system (why not?), you can use the **Windows Subsystem for Linux (WSL)** which can be installed as an additional component on more recent versions of Windows 10. You can download suitable Linux distros from the Microsoft Store; I used Ubuntu. You may have to install some additional packages from the Linux command prompt using *sudo apt install*, notably 'make' and 'ruby'. Don't forget to apply the latest updates using *sudo apt update* and *sudo apt upgrade*.
+
+- The **uqlx** QL emulator for Linux. You can download it [here](http://www.dilwyn.me.uk/emu/index.html#uQLx_for_Linux_etc.); use the 2017 or 2018a version which is suitable for your system (usually the x86-64 version unless you have an old 32-bit system). In addition, you have to download a QL system rom image from [here](http://www.dilwyn.me.uk/qlrom/index.html) and a Toolkit II ROM image from [here](http://www.dilwyn.me.uk/pe/index.html#tk2). I prefer the latest Minerva ROM (1.98) and Toolkit II v2.20. Create a directory *uqlx* in your home directory and unzip the uqlx binary into it; you may also want to copy or rename the appropriate binary to *qm* and place this in a directory in your path, since the build scripts expect this. Create another directory *romdir* within the *uqlx* directory and place the Minerva rom in this directory under the name *minerva_rom*, and the Toolkit II rom under the name *tk2_ext*.
+
+**Note:** To download these files into the Linux system from the download pages, you can copy the link address from your browser (right-click then 'Copy link location') and type the command 'wget ' followed by the copied link address (just right-click when on the command prompt). Alternatively, when using WSL, you may copy them from a Windows folder to the Linux system using the method described in the next paragraph.
+
+Notes for Windows Subsystem for Linux users
+-------------------------------------------
+
+Windows Subsystem for Linux (WSL) has actually two versions. Version 1 (WSL1) was introduced first and does not require the Windows Virtual Machine Platform. A specially compiled Linux kernel translates Linux system calls to the Windows environment and files are residing on the Windows file system.
+
+In the most recent (2020 and later) versions of Windows 10 you can also opt to use WSL version 2 (WSL2). This uses the Windows Virtual Machine Platform, which is a component of Microsoft's Hyper-V virtualisation platform. Thus, WSL2 runs in a Virtual Machine, using a 'real' Linux kernel and file system. Under WSL2, you might see a somewhat better performance compared to WSL1. However, WSL2 requires the Windows Hypervisor to be running. If you're already using virtualisation software like VMware or VirtualBox, the Windows Hypervisor might get in the way because certain hardware features are not available when it is active. The most recent versions of VMware Workstation (15.5 and higher) and VirtualBox (6.1 and higher) will work under WHP, but at reduced performance since their VMs have to run under Microsoft's hypervisor rather than their native hypervisor. You should therefore carefully consider whether to use WSL1 or WSL2; if you're already using VMware or VirtualBox it's best to use WSL1 or (even better) install a complete Linux environment such as Ubuntu or Linux Mint in a VMware or VBox virtual machine. *Note that the Windows Hypervisor requires a processor with Second Level Address Translation (SLAT) support, which older processors like Intel's Core 2 Duo don't have. If you have a machine with these processors, you cannot install WSL2 at all.*
+
+For the purpose of building Minerva4Q68, WSL1 will be sufficient. It is very lightweight, requires no graphical Linux environment and files in the Linux subsystem can be easily accessed by making a drive mapping to the WSL$ share (e.g. \\WSL$\Ubuntu-18.04\home\jan). Do not ever try to access the files in the WSL subsystem by browsing directly into your hard drive with File Explorer, as this will almost certainly corrupt the files inside it!
+
+Under both WSL1 and WSL2, the X-windows graphical environment is not supported. This means that uqlx cannot display the QL screen on WSL. However, since uqlx is only used here in scripted mode, it will display the output from the QL environment on the standard output, i.e. the Linux terminal.
