@@ -79,7 +79,7 @@ If you use the Pointer Interface in 1024x768 mode, then some caution is required
 360   END IF
 370 END DEFine patch_ptr
 ~~~
-Note that you must switch to 1024x768 mode /BEFORE/ activating the Pointer Interface. After this, you cannot switch back to the lower-resolution modes.
+Note that you must switch to 1024x768 mode *BEFORE* activating the Pointer Interface. After this, you cannot switch back to the lower-resolution modes.
 
 The functions SCR_BASE, SCR_LLEN, SCR_XLIM and SCR_YLIM return the base address, pixel line length in bytes, and X and Y limits of the current screen mode, like their SMSQ/E counterparts. In the current version, any parameters are ignored.
 
