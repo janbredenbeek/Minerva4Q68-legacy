@@ -26,6 +26,9 @@ Q68_SKEY 	equ	0	* use serial line as keyboard
 * CPU 0: test it, 1: fixed to 68000
 CPU		equ	0	
 
+* High resolution (1024x768) for Q68 (DISP_MODE 4, EXPERIMENTAL)
+Q68_HIRES       equ     1
+
 SDEBUG equ 	0
 
  ENDGEN

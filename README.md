@@ -47,6 +47,41 @@ CONFIGURATION:
 
 The devices win1_ to win8_ and qub1_ to qub8_ can be configured to be mapped to any \*.WIN (QLWA format) or \*.BIN (Qubide format) container file by using the CONFIG or MENUCONFIG program on the Q68_ROM.SYS file. You MUST use a V2 capable version of these programs. Suitable CONFIG programs can be found on https://dilwyn.qlforum.co.uk/config/index.html.
 
+HIGH RESOLUTION MODE 1024x768x4
+-------------------------------
+
+From v1.4 onwards, the Q68's 1024x768x4 mode is supported. Note that this mode has not been tested extensively so please use it with caution. 
+
+The 1024x768x4 mode is implemented using the DISP_MODE command with a subset of the SMSQ/E version. Currently, modes 0 (256x256x8), 1 (512x256x4), and 4 (1024x768x4) are supported. Implementing the full range, including 65536-colour modes, would require a total rewrite of the screen drivers and also raise incompatibility problems with the Pointer Interface etc, so if you need these modes then better stick to SMSQ/E...
+
+That said, it would have been nice if the Q68 had supported 8-colour mode with higher resolution, which is fairly easy to implement in the current drivers. Also, 1024x768 might be difficult to read on modern LCD-type monitors where the native resolution is not an exact multiple of 1024x768. To this end, downscaling to 512x384 would be a good compromise (e.g. DISP_MODE 6, but with 8 colours? (end of feature request :-)))
+
+Note that Minerva's dual screen feature is not supported in 1024x768 mode, and trying to switch to DISP_MODE 4 with dual screen enabled will produce a 'not complete' error. Please reboot first with dual screen disabled.
+
+If you use the Pointer Interface in 1024x768 mode, then some caution is required. The ptr_gen program needs to be patched to support the extended screen size and different screen buffer address. Thus, you must load it with some code like this (Toolkit II extensions required):
+~~~
+200 DEFine PROCedure patch_ptr
+210 LOCal a,p,s
+220   a=RESPR(FLEN(\ptr_gen))
+230   LBYTES ptr_gen,a
+240   s=0: PRINT "Patching pointer interface...";
+250   FOR p=a TO a+FLEN(\ptr_gen) STEP 2
+260     IF PEEK_L(p)=32768 AND PEEK_W(p+4)=128 AND PEEK_W(p+6)=512 AND PEEK_W(p+8)=256 THEN
+270       POKE_L p-4,HEX('fe800000'): POKE_L p,HEX('30000'): REMark buffer address and size
+280       POKE_W p+4,256: POKE_W p+6,1024: POKE_W p+8,768: REMark line length, X size, Y size
+290       s=1: EXIT p
+300     END IF
+310   END FOR p
+320   IF s=1 THEN
+330     PRINT "Success!": CALL a: LRESPR wman: LRESPR hot_rext
+340   ELSE
+350     PRINT "Failed!"
+360   END IF
+370 END DEFine patch_ptr
+~~~
+Note that you must switch to 1024x768 mode /BEFORE/ activating the Pointer Interface. After this, you cannot switch back to the lower-resolution modes.
+
+The functions SCR_BASE, SCR_LLEN, SCR_XLIM and SCR_YLIM return the base address, pixel line length in bytes, and X and Y limits of the current screen mode, like their SMSQ/E counterparts. In the current version, any parameters are ignored.
 
 Current issues:
 ---------------
@@ -68,6 +103,7 @@ Contributors:
 Version history:
 ----------------
 
+- 9 July 2023: v1.4 released. Implemented 1024x768x4 mode (beta)
 - 29 June 2023: v1.3 released. Support for external interrupts on all Q68 firmware versions, support for keyboard interrupt on newer firmware versions, one language version now for all three keyboard layouts.
 - June 2021: Combined keyboard and SD-card drivers in one single ROM image, leaving 16K available for other extension ROMs. Patched SD-card driver for stale TRAP #14 instruction left over (from debugging?)
 - May 2019: Patch included for LBYTES bug over network (contributed by Marcel Kilgus)

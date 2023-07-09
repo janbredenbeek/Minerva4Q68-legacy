@@ -123,23 +123,4 @@ SV_AIO   equ $1C  L address of input/output routine
 SV_AOPEN equ $20  L address of channel open routine
 SV_ACLOS equ $24  L address of channel close routine
 
-* BASIC variables
-
-bv_rip   equ $58  L top of math stack
-
-* vectors
-
-ut_mtext equ $d0  print string at (a1)
-bp_init  equ $110 initialise S*BASIC procs/funcs
-ca_gtint equ $112 get integers
-
-* QDOS keys
-
-mt.inf   equ 0    get QDOS info
-
-* QDOS errors
-
-err.nf   equ -7
-err.bp   equ -15
-
         list

@@ -8,6 +8,9 @@
 ; 
 ; Changelog:
 ;
+; 20230709 JB (v1.4):
+;   Implemented high-resolution mode (1024x768x4, DISP_MODE 4, BETA FEATURE)
+;
 ; 20230628 JB (v1.3):
 ;   One version now for all keyboard languages, KBTABLE command added to switch
 ;
@@ -36,21 +39,23 @@
 ;   Included tables for UK and US keyboard layouts
 ;   Set symbol q68_keyc to 1 for US, 44 for UK and 49 for DE
 
-	section q68_q68hw
+        xref    disp_mode,scr_base,scr_llen,scr_xlim,scr_ylim,rom_end
 
-version	setstr	1.3
+version	setstr	1.4
 
 DEBUG	equ	0		; set to 1 to display variables and result code
-
-q68	equ	1
-
 
 ;*  q68_keyc equ	1		; keyboard layout code (1 = US, 44 = UK, 49 = DE) 
 ;*  should go into userdefs
 
+        include mincf
         include userdefs
         include sv.inc
         include sx.inc
+        include bv.inc
+        include err.inc
+        include mt.inc
+        include vect.inc
         include q68
 
 string$	macro	a
@@ -79,6 +84,8 @@ BOOTDEV equ     0
 ; our code. If there is one, we do the usual initialisation that the system
 ; ROM does.
 
+	section q68_q68hw
+        
 romh:
 	dc.l	$4afb0001       ; ROM marker
 	dc.w	procs-romh	; no procs to declare
@@ -93,12 +100,12 @@ rom_init bsr.s    q68kbd_init       ; do our own initialisation
          bne.s    bye               ; no, exit
          lea      8(a3),a1          ; ROM name
          suba.l   a0,a0
-         move.w   ut_mtext,a2       ; print it
+         move.w   ut.mtext,a2       ; print it
          jsr      (a2)
          move.w   4(a3),d0          ; S*Basic procs?
          beq.s    in_nobas          ; no
          lea      (a3,d0.w),a1
-         move.w   bp_init,a2        ; else, link them in
+         move.w   bp.init,a2        ; else, link them in
          jsr      (a2)
 in_nobas move.w   6(a3),d0          ; init routine?
          beq.s    bye               ; no
@@ -298,11 +305,22 @@ intmsg  string$ {'* Using keyboard interrupt *',10}
 ************************************
 * Procedure and function definitions
 
-procs   dc.w    1               ; one procedure
+procs   dc.w    2               ; two procedures
         dc.w    kbtable-*
         dc.b    7,'KBTABLE'
+        dc.w    disp_mode-*
+        dc.b    9,'DISP_MODE'
         dc.w    0               ; end of procs
-        dc.w    0,0             ; no functions
+        dc.w    4               ; no of functions
+        dc.w    scr_base-*
+        dc.b    8,'SCR_BASE'
+        dc.w    scr_llen-*
+        dc.b    8,'SCR_LLEN'
+        dc.w    scr_xlim-*
+        dc.b    8,'SCR_XLIM'
+        dc.w    scr_ylim-*
+        dc.b    8,'SCR_YLIM'
+        dc.w    0               ; end of functions
 
 * subroutine to get address of linkage block from BASIC
 * Entry: none
@@ -333,7 +351,7 @@ glb_ret movem.l (sp)+,d1-d2/a0-a1
 * Usage: KBTABLE <country code>
 
 kbtable:
-        move.w  ca_gtint,a2     ; get integer parameter
+        move.w  ca.gtint,a2     ; get integer parameter
         jsr     (a2)
         bne.s   kb_exit         ; if error
         subq.w  #1,d3
@@ -1571,7 +1589,5 @@ KR_IPCrt:
 
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ;  BASIC extensions not fully implemented yet
-
-rom_end  equ      *
 
 	end

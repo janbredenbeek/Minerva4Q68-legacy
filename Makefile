@@ -20,6 +20,7 @@ all:    xrom
 # prepare Q68 keyboard and SD-card driver ROMs
 
 	cat q68hw_rom wl/minv.dv3 > q68hwx_rom
+#	cat q68hw_rom wl/qlsd_driver.bin > q68hwx_rom
 	truncate --size="%16384" q68hwx_rom
 
 # append any other extension ROMs which will be placed at $14000-$17FFF
@@ -48,6 +49,7 @@ origx:  xrom
 
 xrom:
 	cp -u m/inc/q68 extrarom
+	cp -u m/mincf extrarom
 	make -C extrarom
 	cp extrarom/q68hw_rom q68hw_rom
 

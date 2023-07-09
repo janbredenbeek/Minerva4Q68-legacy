@@ -4,6 +4,7 @@
         xref    sd_bordn,sd_bordr,sd_clear
         xref    cs_color
 
+        include 'win1_m_mincf'
         include 'win1_m_inc_assert'
         include 'win1_m_inc_ch'
         include 'win1_m_inc_mc'
@@ -11,6 +12,7 @@
         include 'win1_m_inc_sd'
         include 'win1_m_inc_sv'
         include 'win1_m_inc_sx'
+        include 'win1_m_inc_q68'
 
         section sd_fresh
 
@@ -20,6 +22,15 @@
 sd_fresh
         move.l  a5,a1
         move.w  #ra_ssize/4-1,d0 ... long words
+        
+        GENIF   Q68_HIRES = 1
+        
+        move.l  sv_chtop(a6),a4
+        btst    #sx.q68m4,sx_dspm(a4)
+        beq.s   cls
+        move.w  #1024*768/16-1,d0 ; 1024x768px at 1/4 byte/px = 1/16 long word
+        
+        ENDGEN
 cls
         clr.l   (a1)+
         dbra    d0,cls
@@ -29,20 +40,59 @@ cls
         move.l  sv_chbas(a6),a4 start address of channel tables
 chn_loop
         move.l  (a4)+,d0        next channel
-        blt.s   next_chn        ... does it exist?
+        blt     next_chn        ... does it exist?
         move.l  d0,a0           set address of channel definition block
         move.l  sv_chtop(a6),a3 sysvar extension
         lea     sx_con(a3),a3   linkage area for con driver
         cmp.l   ch_drivr(a0),a3 is it a window?
-        bne.s   next_chn        ... no
+        bne     next_chn        ... no
+
+        GENIF   Q68_HIRES = 1
+        
+        btst    #sx.q68m4,sx_dspm-sx_con(a3) ; Q68 1024x768 mode?
+        beq.s   chn_tst               ; no
+        tst.l   sd_scrb(a0)           ; avoid qptr dummy window
+        beq.s   chn_set
+        move.l  #q68_screen,sd_scrb(a0) ; set new screen buffer addr
+        move.w  #256,sd_linel(a0)       ; and new line length
+        bra.s   chn_set
+        
+        ENDGEN
+
 ;       cmp.l   sd_scrb(a0),a5  is this the screen we are doing?
 ; above is proper, but pander to qptr on it's dummy window... next 4 instrns
+
+chn_tst
         moveq   #ra_bot>>16,d0  treat zero screen base in qptr dummy as scr0
         swap    d0
+        
+        GENIF   Q68_HIRES = 1
+        
+        tst.w   sd_scrb(a0)     ; msw is <0 if switching hi-res to lo-res
+        bpl.s   chn_cmp
+        move.l  d0,sd_scrb(a0)  ; reset base addr to $20000 (no dual screen)
+        move.w  #128,sd_linel(a0) ; and line length to 128
+        move.w  sd_xmin(a0),d0
+        add.w   sd_xsize(a0),d0
+        cmp.w   #512,d0
+        bhi.s   chn_rset
+        move.w  sd_ymin(a0),d0
+        add.w   sd_ysize(a0),d0
+        cmp.w   #256,d0
+        bls.s   chn_set         ; check if window would fit in 512x256 screen
+chn_rset
+        assert  sd_xmin,sd_ymin-2,sd_xsize-4,sd_ysize-6
+        clr.l   sd_xmin(a0)
+        move.l  #512<<16+256,sd_xsize(a0) ; reset to 512x256a0x0
+        bra.s   chn_set
+
+        ENDGEN
+
+chn_cmp
         or.l    sd_scrb(a0),d0  get this channel's screen base
         cmp.l   d0,a5           is this the screen we are doing?
         bne.s   next_chn        ... no
-
+chn_set
         bsr.s   sd_modes        set up info for this mode
 
         tst.b   (a1)            if cursor is not suppressed ...
@@ -60,7 +110,7 @@ chn_loop
 
 next_chn
         cmp.l   sv_chtop(a6),a4 end of channel list?
-        blt.s   chn_loop
+        blt     chn_loop
         rts
 
 * Routine for setting mode dependent info

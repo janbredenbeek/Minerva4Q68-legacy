@@ -1,39 +1,45 @@
 * select HW conf and features
 
-; new prototype
+; compile for q68
 q68	equ	1
 
 ; old style generic code
 realQL	equ	0
 
+ GENIF  q68 = 0
+Q68_RAMT	equ 0   * no limit on RAMTOP except for Q68
+ ENDGEN
 
-QL_NET	equ	1
-QL_MDV	equ	0	* 
-QL_SER	equ	1
-QL_IPC	equ	1	* QL keyboard & IPC - need for uqlx debugging
-QL_IIC	equ 	0
+ GENIF  q68 <> 0
+FULL_RAMTEST	equ	0
+Q68_RAMT	equ 16384	* limit RAMTOP to 16MB
+QL_NET		equ	1
+QL_MDV		equ	0	* 
+* Q68_HACK was required in some earlier versions of the firmware
+Q68_HACK 	equ	0
+QL_SER		equ	0
+QL_IPC		equ	0	* QL keyboard & IPC - need for uqlx debugging
+QL_IIC		equ 	0
 
-Q68_KEY	equ	1	* PS2 keyboard
-Q68_SKEY equ	1	* use serial line as keyboard
-CPU	equ	1	* CPU fixed to 68000
+Q68_KEY		equ	0	* PS2 keyboard
+Q68_SKEY 	equ	0	* use serial line as keyboard
+* CPU 0: test it, 1: fixed to 68000
+CPU		equ	0	
 
-SDEBUG  equ     1
+* High resolution (1024x768) for Q68 (DISP_MODE 4, EXPERIMENTAL)
+Q68_HIRES       equ     1
+
+SDEBUG equ 	0
+
+ ENDGEN
 
 
-; hw specific for the q68 (JB: OBSOLETE, see q68 include file)
+ GENIF realQL <> 0
+for real QL must double check all flags yet
+*QL_NET	equ	1
+*QL_MDV	equ	1
+*QL_SER	equ	1
+*QL_IPC	equ	1
+*QL_IIC	equ 	1
 
-;;Q68_LED		equ	 $1C000
-;;KEY_CODE 	equ	 $1C002
-;;KEY_UNLOCK 	equ	 $1C004
-;;MOUSE_CODE 	equ	 $1C006
-;;MOUSE_UNLOCK 	equ	 $1C008
-;;PS2_STATUS 	equ	 $1C00A
-
-;;UART_TXDATA 	equ	 $1C010
-;;UART_RXDATA 	equ	 $1C012
-;;UART_STATUS 	equ	 $1C014
-;;UART_PRESCALE   equ	 $1C016
-
-;* phased out
-;*Q68_FRQ	equ	$18080	* generate frame irq request
-
+ ENDGEN

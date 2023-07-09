@@ -5,12 +5,14 @@
         xref    ip_dspm
         xref    sd_fresh
 
+        include 'win1_m_mincf'
         include 'win1_m_inc_sv'
         include 'win1_m_inc_sx'
         include 'win1_m_inc_ra'
         include 'win1_m_inc_mc'
         include 'win1_m_inc_jb'
         include 'win1_m_inc_assert'
+        include 'win1_m_inc_q68'
 
 bs      equ     1<<mc..scrn
 bm      equ     1<<mc..m256
@@ -113,6 +115,25 @@ mt_dmode
         movem.l reglist,-(sp)
         jsr     ip_dspm(pc)     leaves a4 pointing at sysvar extension
         movem.l (sp)+,reg_on1
+        
+        GENIF   Q68_HIRES = 1
+        
+        btst    #sx.q68m4,sx_dspm(a4) ; test if we want Q68 1024x768 mode
+        beq.s   qlmode          ; no, ordinary QL modes
+        tst.b   d1              ; d1.b is <0 for only reading mode
+        bmi.s   ret_ext
+        move.l  #q68_screen,a5  ; base of Q68 extended screen buffer
+        bclr    #3,sv_mcsta(a6) ; ensure 4-colour mode
+        jsr     sd_fresh(pc)    ; redraw windows
+        move.b  #q68.dl4,q68_dmode ; set Q68 screen mode
+ret_ext
+        moveq   #0,d1           ; return d1 and d2 always 0 for compatibility
+        moveq   #0,d2
+        movem.l reg_on1,-(sp)   ; re-stack
+        bra     dm_exit         ; and exit
+        
+        ENDGEN
+qlmode
         jsr     ss_jobc(pc)     find current job
 
         move.w  d1,d3           working copy of d1.w
@@ -205,7 +226,7 @@ rddone
 isscr1
         bsr.s   setmc           set sv_mcsta
         move.b  d0,mc_stat      yipee! finally, we set the display hardware!
-
+dm_exit
         movem.l (sp)+,reglist
         jmp     ss_noer(pc)
 

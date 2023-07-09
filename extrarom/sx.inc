@@ -17,6 +17,13 @@ sx_f0    equ $28  L default primary font
 sx_f1    equ $2C  L default secondary font
 
 sx_dspm  equ $30  B real display mode settings (dual screen)
+                ; bit 0-1: screen 0/1 blanked
+                ; bit 2-3: screen 0/1 MODE 8
+                ; bit 4: Q68 1024x768 4-colour mode (EXPERIMENTAL)
+sx.q68m4 equ 4
+                ; bit 5: reserved
+                ; bit 6: should always be 0
+                ; bit 7: which screen visible (0/1)
 sx_toe   equ $31  B turn off ehancements (bit 7 set, allow FORMAT + files open)
 sx_event equ $32  B event byte. bit 4 = CTRL/space, 5=+ALT, 6=+SHIFT, 7=+both
 sx_fstat equ $33  B cursor flash rate, size and colour RRRRSCCC

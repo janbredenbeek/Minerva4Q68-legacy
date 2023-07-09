@@ -8,6 +8,7 @@
         xref    sd_clrxx,sd_cure,sd_curs,sd_curt,sd_donl,sd_entry,sd_modes
         xref    sd_newl,sd_scrol,sd_setfo,sd_wdef
 
+        include 'win1_m_mincf'
         include 'win1_m_inc_sv'
         include 'win1_m_inc_sx'
         include 'win1_m_inc_jb'
@@ -18,6 +19,7 @@
         include 'win1_m_inc_sd'
         include 'win1_m_inc_ra'
         include 'win1_m_inc_assert'
+        include 'win1_m_inc_q68'
 
 * Frame of data used by io.edlin/io.fline
         offset  0
@@ -110,6 +112,18 @@ open_sub
 
         jsr     ip_dspm(pc)     make sure sx_dspm is up-to-date
         move.b  sx_dspm(a4),d0
+        
+        GENIF   Q68_HIRES = 1
+        
+        bclr    #sx.q68m4,d0    ; test for Q68 1024x768 mode
+        beq.s   op_lores
+        move.w  #q68_screen>>16,sd_scrb(a0)
+        lsl     sd_linel(a0)    ; set screen addr & adjust line length
+        bra.s   setscr0         ; skip dual-screen test
+
+        ENDGEN
+
+op_lores
         addq.b  #ra_bot>>16,sd_scrb+1(a0) set base of first screen
         move.l  sv_jbpnt(a6),a1
         move.l  (a1),a1

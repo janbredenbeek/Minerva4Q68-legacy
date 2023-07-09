@@ -1,24 +1,13 @@
-q68hw_rom: q68hw.asm q68 SV.inc sx.inc
+all:	q68hw_rom q68scr_rel
+
+q68hw_rom: q68hw.asm q68 SV.inc sx.inc bv.inc err.inc mt.inc vect.inc
+	cp -p q68hw.asm q68hw_asm
 	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qmac;'q68hw -errors' : kill_uqlx" || true
 	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qlink;'-WITH link -CRF' : kill_uqlx" || true
 	cp LINK_bin q68hw_rom
 
-all:	q68hwde_rom q68hwuk_rom q68hwus_rom
-
-q68hwde_rom: q68hw.asm q68 SV.inc sx.inc
-	echo "q68_keyc equ	49" > userdefs
-	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qmac;'q68hw -errors' : kill_uqlx" || true
+q68scr_rel: q68scr.asm q68 SV.inc sx.inc bv.inc err.inc mt.inc vect.inc
+	cp -p q68scr.asm q68scr_asm
+	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qmac;'q68scr -errors' : kill_uqlx" || true
 	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qlink;'-WITH link -CRF' : kill_uqlx" || true
-	cp LINK_bin q68hwDE_rom
-
-q68hwuk_rom: q68hw.asm q68 SV.inc sx.inc
-	echo "q68_keyc equ	44" > userdefs
-	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qmac;'q68hw -errors' : kill_uqlx" || true
-	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qlink;'-WITH link -CRF' : kill_uqlx" || true
-	cp LINK_bin q68hwUK_rom
-
-q68hwus_rom: q68hw.asm q68 SV.inc sx.inc
-	echo "q68_keyc equ	1" > userdefs
-	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qmac;'q68hw -errors' : kill_uqlx" || true
-	qm -f uqlxrc -s "tk2_ext: data_use win1_: ew ccc1_qlink;'-WITH link -CRF' : kill_uqlx" || true
-	cp LINK_bin q68hwUS_rom
+	cp LINK_bin q68hw_rom
