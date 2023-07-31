@@ -52,9 +52,9 @@ HIGH RESOLUTION MODE 1024x768x4
 
 From v1.4 onwards, the Q68's 1024x768x4 mode is supported. Note that this mode has not been tested extensively so please use it with caution. 
 
-The 1024x768x4 mode is implemented using the DISP_MODE command with a subset of the SMSQ/E version. Currently, modes 0 (256x256x8), 1 (512x256x4), and 4 (1024x768x4) are supported. Implementing the full range, including 65536-colour modes, would require a total rewrite of the screen drivers and also raise incompatibility problems with the Pointer Interface etc, so if you need these modes then better stick to SMSQ/E...
+The 1024x768x4 mode is implemented using the DISP_MODE command with a subset of the SMSQ/E version. Currently, modes 0 (256x256x8), 1 (512x256x4), and 4 (1024x768x4) are supported. Implementing the full range, including 65536-colour modes, would require a total rewrite of the screen drivers, including implementation of the GD2 colour schemes, which is far beyond the scope of this project and already available within SMSQ/E.
 
-That said, it would have been nice if the Q68 had supported 8-colour mode with higher resolution, which is fairly easy to implement in the current drivers. Also, 1024x768 might be difficult to read on modern LCD-type monitors where the native resolution is not an exact multiple of 1024x768. To this end, downscaling to 512x384 would be a good compromise (e.g. DISP_MODE 6, but with 8 colours? (end of feature request :-)))
+That said, it would be nice if the original QL's 8-colour mode could be made available at the higher resolutions offered by the Q68. Also, 1024x768 might be difficult to read on modern LCD-type monitors where the native resolution is not an exact multiple of 1024x768. I personally like the Q68's 512x384 mode which offers good readability (with better aspect ratio than 512x256!) at reasonable speed, with the possibility for more than the boring old 4 colours. So this remains an item on my to-do list...
 
 Note that Minerva's dual screen feature is not supported in 1024x768 mode, and trying to switch to DISP_MODE 4 with dual screen enabled will produce a 'not complete' error. Please reboot first with dual screen disabled.
 
@@ -98,7 +98,7 @@ Contributors:
 
 - Minerva operating system by Laurence Reeves;
 - Keyboard driver: Richard Zidlicky, Jan Bredenbeek
-- SDHC device driver: Wolfgang Lenerz
+- SDHC device driver: Peter Graf, Wolfgang Lenerz
 
 Version history:
 ----------------
